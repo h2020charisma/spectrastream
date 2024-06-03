@@ -1,0 +1,62 @@
+[tool.poetry]
+package-mode = false
+name = "spectrastream"
+description = "Web-based spectra harmonization tool"
+license = "MIT"
+authors = [
+  "Evgeniy Marinov <marinov.evgeniy@gmail.com>",
+  "Sergey Soroka <sergesoroka@gmail.com>",
+  "Luchesar ILIEV <luchesar.iliev@gmail.com>",
+  "Nina Jeliazkova <jeliazkova.nina@gmail.com>",
+]
+maintainers = [
+  "Luchesar Iliev <luchesar.iliev@gmail.com>",
+  "Vedrin Jeliazkov <vedrin.jeliazkov@gmail.com>",
+]
+readme = "README.md"
+homepage = "https://spectrastream.adma.ai"
+repository = "https://github.com/h2020charisma/spectrastream"
+keywords = [
+  "spectroscopy",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Web Environment",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Software Development :: User Interfaces",
+  "Topic :: Software Development :: Libraries",
+]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+streamlit = "^1.35.0"
+
+[tool.poetry.group.dev.dependencies]
+flake8 = "^7.0.0"
+flake8-bugbear = "^24.4.26"
+pre-commit = "^3.7.1"
+pytest = "^8.2.1"
+pytest-cov = "^5.0.0"
+
+[tool.coverage.run]
+relative_files = true
+source = [
+  "app",
+  "tests",
+]
+
+[tool.coverage.paths]
+source = [
+  "src",
+  "*/site-packages",
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
