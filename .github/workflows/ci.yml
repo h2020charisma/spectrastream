@@ -1,0 +1,195 @@
+---
+name: CI
+
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  POETRY_VERSION: 1.8.3
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+
+jobs:
+
+  test:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - '3.9'
+          - '3.10'
+          - '3.11'
+          - '3.12'
+
+    steps:
+
+      - name: Checkout the repository
+        uses: actions/checkout@v4.1.6
+
+      - name: Setup Python
+        uses: actions/setup-python@v5.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Get the precise Python version
+        run: echo "PYTHON_ID=$( python -VV | sha256sum | awk '{ print $1 }' )" >> "$GITHUB_ENV"
+
+      - name: Load the cached Poetry installation
+        id: cached-poetry
+        uses: actions/cache@v4.0.2
+        with:
+          path: ~/.local
+          key: poetry-${{ env.POETRY_VERSION }}-py_${{ env.PYTHON_ID}}-0
+
+      - name: Install Poetry
+        if: steps.cached-poetry.outputs.cache-hit != 'true'
+        uses: snok/install-poetry@v1.3.4
+        with:
+          version: ${{ env.POETRY_VERSION }}
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Load the cached dependencies
+        id: cached-deps
+        uses: actions/cache@v4.0.2
+        with:
+          path: .venv
+          key: py${{ matrix.python-version }}-deps-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-deps.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction
+
+      - name: Run pre-commit
+        run: poetry run pre-commit
+      - name: Run tests
+        env:
+          COVERAGE_FILE: .coverage.${{ matrix.python-version }}
+        run: poetry run pytest --cov
+
+      - name: Store the coverage report
+        uses: actions/upload-artifact@v4.3.3
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: .coverage.${{ matrix.python-version }}
+
+  coverage:
+
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      pull-requests: write
+      contents: write
+
+    steps:
+
+      - name: Checkout the repository
+        uses: actions/checkout@v4.1.6
+
+      - name: Retrieve the coverage reports
+        id: download
+        uses: actions/download-artifact@v4.1.7
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+
+      - name: Process the coverage reports
+        id: coverage_processing
+        uses: py-cov-action/python-coverage-comment-action@v3.23
+        with:
+          COVERAGE_DATA_BRANCH: 'COVERAGE-REPORT'
+          GITHUB_TOKEN: ${{ github.token }}
+          MERGE_COVERAGE_FILES: true
+
+      - name: Store the pull request coverage comment for later posting
+        if: steps.coverage_processing.outputs.COMMENT_FILE_WRITTEN == 'true'
+        uses: actions/upload-artifact@v4.3.3
+        with:
+          name: python-coverage-comment-action
+          path: python-coverage-comment-action.txt
+
+  build:
+
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+      # This is used to complete the identity challenge
+      # with sigstore/fulcio when running outside of PRs.
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.1.6
+
+      # Install the cosign tool except on PR
+      # https://github.com/sigstore/cosign-installer
+      - name: Install cosign
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: sigstore/cosign-installer@v3.5.0
+        with:
+          cosign-release: 'v2.2.4'
+
+      # Workaround: https://github.com/docker/build-push-action/issues/461
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@v3.3.0
+
+      # Login against a Docker registry except on PR
+      # https://github.com/docker/login-action
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3.2.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Extract metadata (tags, labels) for Docker
+      # https://github.com/docker/metadata-action
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5.5.1
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=stable,enable=${{ github.ref == 'refs/heads/main' }}
+            type=ref,event=branch
+            type=ref,event=tag
+            type=ref,event=pr
+
+      # Build and push Docker image with Buildx (don't push on PR)
+      # https://github.com/docker/build-push-action
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v5.3.0
+        with:
+          context: .
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Sign the resulting Docker image digest except on PRs.
+      # This will only write to the public Rekor transparency log when the Docker
+      # repository is public to avoid leaking data.  If you would like to publish
+      # transparency data even for private images, pass --force to cosign below.
+      # https://github.com/sigstore/cosign
+      - name: Sign the published Docker image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
+        # This step uses the identity token to provision an ephemeral certificate
+        # against the sigstore community Fulcio instance.
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
