@@ -1,5 +1,19 @@
 ---
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-docstring-first
+      - id: check-json
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: name-tests-test
+      - id: no-commit-to-branch
+      - id: pretty-format-json
+        args: [--autofix, --no-ensure-ascii]
+      - id: trailing-whitespace
   - repo: https://github.com/python-poetry/poetry
     rev: 1.8.3
     hooks:
@@ -9,6 +23,7 @@ repos:
     rev: 24.4.2
     hooks:
       - id: black
+        args: [--preview]
   - repo: https://github.com/pycqa/flake8
     rev: 7.0.0
     hooks:
