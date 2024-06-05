@@ -11,6 +11,7 @@ This project uses several tools to enhance developer collaboration and ensure hi
 - [Poetry](https://python-poetry.org/): Dependency and virtual environment management.
 - [Black](https://github.com/psf/black): Enforces consistent code formatting.
   - Different developers may have different habits (or no habits at all!) in code formatting. This can not only lead to frustration, but also waste valuable time, especially with poorly formatted code. Blake solves this problem by applying a common formatting. It promises that any changes it makes will **not** change the resulting byte-code.
+- [µsort](https://github.com/facebook/usort): Safe, minimal import sorting for Python projects.
 - [Flake8](https://flake8.pycqa.org/): Linter for identifying syntax and style errors.
   - Black will prevent linter errors related to formatting, but these are not all possible errors that a linter may catch.
 - [Pre-commit](https://pre-commit.com/): Git hooks for automated code quality checks.
@@ -47,29 +48,43 @@ Install Poetry through `pipx` ([details](https://python-poetry.org/docs/#install
 pipx install poetry
 ```
 
+Install the Python version from `.python-version` in the project root, e.g.:
+
+```sh
+pyenv install 3.12
+```
+
 #### Windows
 
-In PowerShell, install `pyenv-win` ([details](https://pyenv-win.github.io/pyenv-win/docs/installation.html)):
+a) In PowerShell (non-admin), install `pyenv-win` ([details](https://pyenv-win.github.io/pyenv-win/docs/installation.html)):
 
 ```powershell
 Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/pyenv-win/pyenv-win/master/pyenv-win/install-pyenv-win.ps1" -OutFile "./install-pyenv-win.ps1"; &"./install-pyenv-win.ps1"
 ```
 
-In PowerShell, install Scoop ([details](https://scoop.sh/)):
+**NB**: Do not install `pyenv-win` with Scoop. This installs an older version that doesn't support “latest” type Python versions, e.g., `3.12` that becomes `3.12.3` automatically.
+
+b) In a Command Prompt, install the Python version from `.python-version` in the project root, e.g.:
+
+```sh
+pyenv install 3.12
+```
+
+c) In PowerShell (non-admin), install Scoop ([details](https://scoop.sh/)):
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
 ```
 
-In a command prompt, install `pipx` ([details](https://pipx.pypa.io/stable/installation/)):
+d) In a Command Prompt, install `pipx` ([details](https://pipx.pypa.io/stable/installation/)):
 
 ```cmd
 scoop install pipx
 pipx ensurepath
 ```
 
-In a command prompt, install Poetry ([details](https://python-poetry.org/docs/#installation)):
+e) In a Command Prompt, install Poetry ([details](https://python-poetry.org/docs/#installation)):
 
 ```cmd
 pipx install poetry
@@ -98,6 +113,8 @@ streamlit run src/spectrastream/app.py
 
 ### Running the formatters & linters
 
+**IMPORTANT**: This is run automatically against the changed files on `git commit`. If hooks like `usort` or `black` fail and change some files, review the changes with `git diff` and add the changed files with `git add`. Then either run `git commit` or `poetry run pre-commit` again, depending on what you were doing.
+
 ```sh
 # Run against changed files
 poetry run pre-commit
@@ -116,12 +133,31 @@ poetry run pytest
 poetry run pytest --cov
 ```
 
+### Switching Python versions
+
+Install the desired Python version with `pyenv`:
+
+```sh
+pyenv install 3.9
+```
+
+Switch the environment to the desired version:
+
+```sh
+pyenv shell 3.9 && poetry env use 3.9 && poetry install
+```
+
+**NB**: On Windows, run this compound command in a Command Prompt, not PowerShell (or, in PowerShell, execute the commands separated by `&&` independently, one after another).
+
 ### Specific IDE/editor notes
 
 For better integration with Visual Studio Code, you may set:
+
 ```sh
 poetry config virtualenvs.in-project true
 ```
+
+You will need to run `poetry install` again after this.
 
 ## Acknowledgements
 
