@@ -69,7 +69,13 @@ jobs:
         run: poetry install --no-interaction
 
       - name: Run pre-commit
-        run: poetry run pre-commit
+        run: >-
+          if [[ $GITHUB_REF == refs/heads/main ]]; then
+            SKIP=no-commit-to-branch poetry run pre-commit run --all-files
+          else
+            poetry run pre-commit run --all-files
+          fi
+
       - name: Run tests
         env:
           COVERAGE_FILE: .coverage.${{ matrix.python-version }}
