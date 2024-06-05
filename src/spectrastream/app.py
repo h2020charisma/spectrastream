@@ -1,15 +1,18 @@
-import pandas as pd
 from collections import defaultdict
-from front_end.htmlTemplates import css
+from pathlib import Path
 
+import pandas as pd
 import streamlit as st
+
+from front_end.htmlTemplates import css
 
 # import extra_streamlit_components as stx
 
+rpath = Path(__file__).parent.resolve()
 
 st.set_page_config(
     page_title="Raman spectroscopy harmonisation",
-    page_icon="./src/front_end/images/logo_charisma.jpg",
+    page_icon=str(rpath / "front_end/images/logo_charisma.jpg"),
     layout="wide",
 )
 
@@ -67,7 +70,7 @@ def main():
 
     with st.sidebar:
 
-        st.sidebar.image("./src/front_end/images/logo_charisma.jpg")
+        st.sidebar.image(str(rpath / "front_end/images/logo_charisma.jpg"))
         # st.header("AI data extractor")
 
         with st.expander("Search for or upload spectra files", expanded=True):

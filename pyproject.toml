@@ -46,7 +46,10 @@ pytest-cov = "^5.0.0"
 [tool.pytest.ini_options]
 minversion = "8.0"
 addopts = "-ra -q"
-pythonpath = ["src"]
+pythonpath = [
+  "src",
+  "src/spectrastream",
+]
 filterwarnings = [
   "error",  # treat all warnings as errors
   "ignore:.*custom tp_new.*in Python 3.14.*:DeprecationWarning",
