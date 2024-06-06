@@ -149,6 +149,12 @@ pyenv shell 3.9 && poetry env use 3.9 && poetry install
 
 **NB**: On Windows, run this compound command in a Command Prompt, not PowerShell (or, in PowerShell, execute the commands separated by `&&` independently, one after another).
 
+Check the virtualenv version:
+
+```sh
+poetry env info
+```
+
 ### Specific IDE/editor notes
 
 For better integration with Visual Studio Code, you may set:
