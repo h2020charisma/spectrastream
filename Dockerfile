@@ -31,7 +31,7 @@ RUN sed -i 's/^-e //' /tmp/requirements.txt \
     && pip install --no-cache-dir --upgrade -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt
 
-COPY ./src/spectrastream  /app
+COPY ./src/spectrastream /app
 
 WORKDIR /app
 
