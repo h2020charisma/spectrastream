@@ -34,7 +34,7 @@ jobs:
     steps:
 
       - name: Checkout the repository
-        uses: actions/checkout@v4.1.6
+        uses: actions/checkout@v4.1.7
 
       - name: Setup Python
         uses: actions/setup-python@v5.1.0
@@ -100,7 +100,7 @@ jobs:
     steps:
 
       - name: Checkout the repository
-        uses: actions/checkout@v4.1.6
+        uses: actions/checkout@v4.1.7
 
       - name: Retrieve the coverage reports
         id: download
@@ -137,7 +137,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.1.6
+        uses: actions/checkout@v4.1.7
 
       # Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
