@@ -8,9 +8,9 @@ from front_end.htmlTemplates import css
 
 from modules.navigation_bar import navbar
 
-from ramanchada2.protocols.calibration import CalibrationModel
+from modules.util import plot_original_x_calib_spe, process_file_spe
 
-from util import plot_original_x_calib_spe, process_file_spe
+from ramanchada2.protocols.calibration import CalibrationModel
 
 navbar()
 

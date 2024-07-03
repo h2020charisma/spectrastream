@@ -9,9 +9,14 @@ from front_end.htmlTemplates import css
 
 from modules.navigation_bar import navbar
 
-from ramanchada2.protocols.calibration import CalibrationModel
+from modules.util import (
+    init_streamlit_cache,
+    plot_original_x_calib_spe,
+    process_file_spe,
+    update_session_state,
+)
 
-from util import plot_original_x_calib_spe, process_file_spe
+from ramanchada2.protocols.calibration import CalibrationModel
 
 navbar()
 
@@ -19,6 +24,7 @@ navbar()
 st.title("Load target spectra......")
 
 # st.set_page_config(
+
 #     page_title="Raman spectroscopy harmonisation",
 #     page_icon="./src/front_end/images/logo_charisma.jpg",
 #     layout="wide",
@@ -31,14 +37,41 @@ with st.sidebar:
 
     # st.sidebar.image("./src/front_end/images/logo_charisma.jpg")
     # st.header("AI data extractor")
+    target_spe_choices = ["Search target spectrum", "Load target spectrum"]
 
-    calibration_choice = st.radio(
-        "Choose target spectra option",
-        ["Search target spectra", "Load target spectra"],
-        index=0,
+    def set_target_spe_choice_change():
+
+        spe_choice = st.session_state["cache_strings"]["target_spe_choice"]
+        assert spe_choice in target_spe_choices, (spe_choice, target_spe_choices)
+        if spe_choice == "Search target spectrum":
+            set_spe_choice = "Load target spectrum"
+        else:  # spe_choice == 'Load target spectrum':
+            set_spe_choice = "Search target spectrum"
+
+        st.session_state["cache_strings"]["target_spe_choice"] = set_spe_choice
+
+    if "target_spe_choice" not in st.session_state["cache_strings"]:
+        st.session_state["cache_strings"][
+            "target_spe_choice"
+        ] = "Search target spectrum"
+
+    target_spe_choice_ = st.session_state["cache_strings"]["target_spe_choice"]
+
+    assert target_spe_choice_ in target_spe_choices, (
+        target_spe_choice_,
+        target_spe_choices,
     )
 
-    if calibration_choice == "Search target spectra":
+    target_spe_choice = st.radio(
+        "Choose target spectrum option",
+        target_spe_choices,
+        index=target_spe_choices.index(target_spe_choice_),
+        on_change=set_target_spe_choice_change(),
+    )
+
+    st.session_state["cache_strings"]["target_spe_choice"] = target_spe_choice
+
+    if target_spe_choice == "Search target spectrum":
         with st.sidebar:
             existing_calibration = st.text_input("Search for target spectra in DB", "")
     else:
@@ -52,8 +85,8 @@ with st.sidebar:
         )
 
         if uploaded_target_spec:
-            st.session_state["cache_dicts"]["target_spe"] = process_file_spe(
-                [uploaded_target_spec], label="Target"
+            st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"] = (
+                process_file_spe([uploaded_target_spec], label="Target")
             )
 
             st.session_state["cache_strings"][
@@ -71,7 +104,7 @@ btn_load_target_spe = st.session_state["cache_strings"]["btn_load_target_spe"]
 
 
 if btn_load_target_spe == "uploaded_target_spectra_btn":
-    target_spe = st.session_state["cache_dicts"]["target_spe"][0]
+    target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"]
     ax = target_spe.plot(label="Target spe")
     fig = ax.get_figure()
     st.pyplot(fig)
@@ -79,8 +112,11 @@ if btn_load_target_spe == "uploaded_target_spectra_btn":
 
     # if submitted_btn_spec:
 
-    #     st.write('TARGET SPE loaded')
-page_1_session_state = deepcopy(st.session_state)
+#     #     st.write('TARGET SPE loaded')
+# page_1_session_state = {}
+
+# page_1_session_state['cache_dicts'] = deepcopy(
+#     st.session_state['cache_dicts'])
 
 this_int = 10
 # Prominance!!!!!!

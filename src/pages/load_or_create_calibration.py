@@ -8,40 +8,57 @@ from front_end.htmlTemplates import css
 
 from modules.navigation_bar import navbar
 
+from modules.util import (
+    plot_original_x_calib_spe,
+    process_file_spe,
+    update_session_state,
+)
+
 from ramanchada2.protocols.calibration import (
     CalibrationModel,
     CertificatesDict,
+    XCalibrationComponent,
     YCalibrationCertificate,
     YCalibrationComponent,
 )
 
-from util import plot_original_x_calib_spe, process_file_spe
+# from pages.load_target_spectra import page_1_session_state, this_int
 
-from pages.load_target_spectra import page_1_session_state, this_int
-
-navbar()
-
-print(this_int)
-print(page_1_session_state)
-
-
-# st.set_page_config(
-#     page_title="Raman spectroscopy harmonisation",
-#     page_icon="../front_end/images/logo_charisma.jpg",
-#     layout="wide",
-# )
+# print('END session state')
+st.set_page_config(
+    page_title="Raman spectroscopy harmonisation",
+    page_icon="../front_end/images/logo_charisma.jpg",
+    layout="centered",
+)
 
 st.write(css, unsafe_allow_html=True)
 
-st.session_state.update(page_1_session_state)
 
-st.session_state["cache_dicts"]["target_spe"] = st.session_state["cache_dicts"][
-    "target_spe"
-]
+navbar()
+
+# print('page_1_session_state')
+# print(this_int)
+# print(page_1_session_state)
+
+# print('session state BEFORE update')
+# print(st.session_state)
+# print('Update session state')
+# update_session_state(page_1_session_state, st.session_state)
+# print('session state AFTER update')
+# print(st.session_state)
+
+
+# st.session_state.update(page_1_session_state)
+
+# st.session_state["cache_dicts"]["target_spe"] = st.session_state["cache_dicts"][
+#     "target_spe"
+# ]
 
 
 def instrument_settings_expander():
-
+    # st.write(type(st.session_state))
+    print("This is session state type...")
+    print(type(st.session_state))
     with st.expander("Instrument settings", expanded=False):
 
         if "instrument_settings" not in st.session_state["cache_dicts"]:
@@ -103,7 +120,7 @@ def active_calibration_settings_expander():
         ] = prominence
 
 
-def load_calibration_spectra_expander():
+def load_calibration_spectra():
 
     uploaded_neon_spec = st.file_uploader(
         "Load Neon spectra file", accept_multiple_files=False
@@ -131,16 +148,23 @@ def load_calibration_spectra_expander():
         ] = "uploaded_si_calib_spectra_btn"
 
 
+def page_call_STD1_X_Calibration():
+    pass
+
+
 def create_x_calibration_sidebar_expander():
 
     with st.expander("Create X-Calibration", expanded=False):
 
-        load_calibration_spectra_expander()
+        load_calibration_spectra()
 
         with st.form("STD1 Process"):
 
+            page_call_STD1_X_Calibration()
+
             submitted_btn_st1 = st.form_submit_button("Process Neon spe")
             if submitted_btn_st1:
+
                 st.session_state["cache_strings"][
                     "x_calibration"
                 ] = "submitted_std1_btn"
@@ -267,14 +291,15 @@ def process_x_calibration_neon_creation():
     )
 
     with load_tn:
-        neon_spe = st.session_state["cache_dicts"]["spectra_x"]["neon"][0]
+        neon_spe = st.session_state["cache_dicts"]["spectra_x"]["neon"]
         st.session_state["cache_dicts"]["spectra_x_current"]["neon"] = neon_spe
 
-        fig, ax = plt.subplots(figsize=(30, 15))
-        neon_spe.plot(ax=ax, label="Neon")
-        st.pyplot(fig)
-        # plot_original_x_calib_spe(
-        #     neon_spe, label=neon_spe.meta['label'])
+        simple_plot_spe(spe=neon_spe, label="Neon", xlabel=r"Raman shift")
+
+        # fig, ax = plt.subplots(figsize=(30, 15))
+        # neon_spe.plot(ax=ax, label="Neon")
+        # st.pyplot(fig)
+
     with crop_tn:
         spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
         (left_val, right_val) = st.slider(
@@ -289,9 +314,11 @@ def process_x_calibration_neon_creation():
         st.session_state["cache_dicts"]["spectra_x_current"]["neon"] = spe
         st.session_state["cache_dicts"]["spectra_x_crop"]["neon"] = spe
 
-        fig, ax = plt.subplots(figsize=(30, 15))
-        spe.plot(ax=ax, label="Neon")
-        st.pyplot(fig)
+        simple_plot_spe(spe=neon_spe, label="Neon", xlabel=r"Raman shift")
+
+        # fig, ax = plt.subplots(figsize=(30, 15))
+        # spe.plot(ax=ax, label="Neon")
+        # st.pyplot(fig)
 
     with normalize_tn:
         # st.write('normlaize tab')
@@ -305,11 +332,12 @@ def process_x_calibration_neon_creation():
             "neon"
         ] = neon_normalized_spe
 
-        fig, ax = plt.subplots(figsize=(30, 15))
-        neon_normalized_spe.plot(ax=ax)
-        st.pyplot(fig)
-        # plot_original_x_calib_spe(neon_normalized_spe,
-        #                           label=neon_normalized_spe.meta['label'])
+        simple_plot_spe(spe=neon_normalized_spe, label="Neon", xlabel=r"Raman shift")
+
+        # fig, ax = plt.subplots(figsize=(30, 15))
+        # neon_normalized_spe.plot(ax=ax)
+        # st.pyplot(fig)
+
     with peakfind_tn:
         # st.write('Peak find')
         neon_spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
@@ -411,7 +439,9 @@ def process_x_calibration_neon_creation():
             "neon"
         ] = neon_peak_candidates
 
-        fig, ax = plt.subplots(figsize=(30, 10))
+        fig, ax = plt.subplots(figsize=(30, 12))
+        fig, ax = plt.subplots()
+
         neon_peak_candidates.plot(ax=ax, fmt=":", label="Neon")
 
         st.pyplot(fig)
@@ -451,7 +481,9 @@ def process_x_calibration_neon_creation():
             profile=profile, candidates=neon_peak_candidates, no_fit=True
         )
 
-        fig, ax = plt.subplots(figsize=(30, 15))
+        # fig, ax = plt.subplots(figsize=(30, 15))
+        fig, ax = plt.subplots()
+
         neon_spe.plot(ax=ax, fmt=":", label="Neon")
         fitres.plot(
             ax=ax,
@@ -471,12 +503,13 @@ def process_x_calibration_si_creation():
     )
 
     with load_ts:
-        spe = st.session_state["cache_dicts"]["spectra_x"][material][0]
+        spe = st.session_state["cache_dicts"]["spectra_x"][material]
         st.session_state["cache_dicts"]["spectra_x_current"][material] = spe
 
-        fig, ax = plt.subplots(figsize=(30, 15))
-        spe.plot(ax=ax, label="Si")
-        st.pyplot(fig)
+        simple_plot_spe(spe=spe, label="Si", xlabel=r"Raman shift")
+        # fig, ax = plt.subplots(figsize=(30, 15))
+        # spe.plot(ax=ax, label="Si")
+        # st.pyplot(fig)
 
     with crop_tn:
         spe = st.session_state["cache_dicts"]["spectra_x_current"][material]
@@ -492,9 +525,10 @@ def process_x_calibration_si_creation():
         st.session_state["cache_dicts"]["spectra_x_current"][material] = spe
         st.session_state["cache_dicts"]["spectra_x_crop"][material] = spe
 
-        fig, ax = plt.subplots(figsize=(30, 15))
-        spe.plot(ax=ax, label="Si")
-        st.pyplot(fig)
+        simple_plot_spe(spe=spe, label="Si", xlabel=r"Raman shift")
+        # fig, ax = plt.subplots(figsize=(30, 15))
+        # spe.plot(ax=ax, label="Si")
+        # st.pyplot(fig)
 
     with baseline_tn:
         use_baseline_corr = st.checkbox(
@@ -516,7 +550,7 @@ def process_x_calibration_si_creation():
         )
 
         spe = st.session_state["cache_dicts"]["spectra_x_current"]["si"]
-        # st.session_state["cache_dicts"]['spectra_x']['neon'][0]
+        # st.session_state["cache_dicts"]['spectra_x']['neon']
         baseline_corr_spe = spe - spe.moving_minimum(moving_min_val)
         st.session_state["cache_dicts"]["spectra_x_baseline_corr"][
             "si"
@@ -527,9 +561,11 @@ def process_x_calibration_si_creation():
             ] = baseline_corr_spe
         # plot_original_x_calib_spe(neon_baseline_corr_spe,
         #                           label=neon_baseline_corr_spe.meta['label'])
-        fig, ax = plt.subplots(figsize=(30, 12))
-        baseline_corr_spe.plot(ax=ax, label="Si")
-        st.pyplot(fig)
+        # fig, ax = plt.subplots(figsize=(30, 12))
+        # baseline_corr_spe.plot(ax=ax, label="Si")
+        # st.pyplot(fig)
+
+        simple_plot_spe(spe=baseline_corr_spe, label="Si", xlabel=r"Raman shift")
 
     with normalize_ts:
         # st.write('normlaize tab')
@@ -541,10 +577,12 @@ def process_x_calibration_si_creation():
         ] = normalized_spe
         st.session_state["cache_dicts"]["spectra_x_current"][material] = normalized_spe
 
-        fig, ax = plt.subplots(figsize=(30, 15))
+        simple_plot_spe(spe=normalized_spe, label="Si", xlabel=r"Raman shift")
 
-        normalized_spe.plot(ax=ax, label="Si")
-        st.pyplot(fig)
+        # fig, ax = plt.subplots(figsize=(30, 15))
+
+        # normalized_spe.plot(ax=ax, label="Si")
+        # st.pyplot(fig)
 
     with peakfind_ts:
 
@@ -651,7 +689,9 @@ def process_x_calibration_si_creation():
             material
         ] = peak_candidates
 
-        fig, ax = plt.subplots(figsize=(30, 10))
+        # fig, ax = plt.subplots(figsize=(30, 10))
+        fig, ax = plt.subplots()
+
         peak_candidates.plot(ax=ax, fmt=":", label="Si")
 
         st.pyplot(fig)
@@ -682,7 +722,9 @@ def process_x_calibration_si_creation():
             profile=profile, candidates=peak_candidates, no_fit=True
         )
 
-        fig, ax = plt.subplots(figsize=(30, 15))
+        # fig, ax = plt.subplots(figsize=(30, 15))
+        fig, ax = plt.subplots()
+
         spe.plot(ax=ax, fmt=":", label="Si")
         fitres.plot(
             ax=ax,
@@ -694,10 +736,14 @@ def process_x_calibration_si_creation():
 
 
 def simple_plot_spe(spe, label, xlabel):
-    fig, ax = plt.subplots()
-    fig.set_size_inches(30, 15)
-    ax.set_xlabel(xlabel)
-    spe.plot(ax=ax, label=label)
+    # ax = spe.plot(label="Target spe")
+    # fig = ax.get_figure()
+    # st.pyplot(fig)
+    # fig, ax = plt.subplots()
+    # ax.set_xlabel(xlabel)
+    ax = spe.plot(label=label)
+    fig = ax.get_figure()
+    # fig.set_size_inches(30, 15)
     st.pyplot(fig)
 
 
@@ -717,12 +763,23 @@ with st.sidebar:
 
     # st.sidebar.image("./src/front_end/images/logo_charisma.jpg")
     # st.header("AI data extractor")
+    calibration_choice_ = st.session_state["cache_strings"].get(
+        "calibration_choice", "Load/Search Calibration"
+    )
+
+    calibration_choices = ["Load/Search Calibration", "Create Calibration"]
+    assert calibration_choice_ in calibration_choices, (
+        calibration_choice_,
+        calibration_choices,
+    )
 
     calibration_choice = st.radio(
         "Choose calibration option",
-        ["Load/Search Calibration", "Create Calibration"],
-        index=0,
+        calibration_choices,
+        index=calibration_choices.index(calibration_choice_),
     )
+
+    st.session_state["cache_strings"]["calibration_choice"] = calibration_choice
 
 if calibration_choice == "Load/Search Calibration":
     with st.sidebar:
@@ -753,12 +810,12 @@ x_calib_btn = st.session_state["cache_strings"]["x_calibration"]
 
 if x_calib_btn == "uploaded_neon_calib_spectra_btn":
 
-    neon_spe = st.session_state["cache_dicts"]["spectra_x"]["neon"][0]
+    neon_spe = st.session_state["cache_dicts"]["spectra_x"]["neon"]
 
     simple_plot_spe(spe=neon_spe, label="Neon", xlabel=r"Raman shift [$\mathrm{nm}$]")
 
 elif x_calib_btn == "uploaded_si_calib_spectra_btn":
-    si_spe = st.session_state["cache_dicts"]["spectra_x"]["si"][0]
+    si_spe = st.session_state["cache_dicts"]["spectra_x"]["si"]
 
     simple_plot_spe(spe=si_spe, label="Si", xlabel=r"Raman shift [$\mathrm{cm}^{-1}$]")
     # fig, ax = plt.subplots()
@@ -777,6 +834,7 @@ elif x_calib_btn == "submitted_std2_btn":
     ###################################################
 
 elif x_calib_btn == "btn_derive_x_calibration":
+
     neon_spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
     si_spe = st.session_state["cache_dicts"]["spectra_x_current"]["si"]
 
@@ -799,23 +857,34 @@ elif x_calib_btn == "btn_derive_x_calibration":
     fit_kw_neon = st.session_state["cache_dicts"]["spectra_x_current"][
         "neon_kwargs_fit_peak"
     ]
+    from ramanchada2.spectrum import Spectrum
 
-    target_spe = st.session_state["cache_dicts"]["target_spe"][0]
+    # target_spe = st.session_state["cache_dicts"]["target_spe"]
+    target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"]
     ref_neon_spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
+    print("Types spe")
+    print(type(target_spe), type(ref_neon_spe))
+    print(target_spe)
+    assert isinstance(target_spe, Spectrum), type(target_spe)
+    assert isinstance(ref_neon_spe, Spectrum), type(ref_neon_spe)
 
-    from ramanchada2.protocols.calibration import XCalibrationComponent
+    print("DERIVE model curve START")
+
+    spe_units = "cm-1"
+    ref_units = "cm-1"
 
     calibration_component_neon: XCalibrationComponent = calmodel.derive_model_curve(
         spe=target_spe,
         ref=ref_neon_spe,  # neon_spe,
-        # laser_wl,
-        spe_units="cm-1",
-        ref_units="cm-1",
+        spe_units=spe_units,
+        ref_units=ref_units,
         find_kw=find_kw_neon,
         fit_peaks_kw=fit_kw_neon,
         should_fit=False,
         name="Neon calibration",
     )
+
+    print("DERIVE model curve END")
 
     spe_si_new = calibration_component_neon.process(
         si_spe, spe_units="nm", convert_back=False
@@ -837,12 +906,16 @@ elif x_calib_btn == "btn_derive_x_calibration":
         fit_peaks_kw=fit_kw_si,
     )
 
+    st.session_state["cache_dicts"]["spectra_x_current"][
+        "xcalibration_model"
+    ] = calmodel
+
     ax = calmodel.plot()
     fig = ax.get_figure()
     st.pyplot(fig)
     # !!! Save the calmodel !!! and use in the Ycalibration
 
-    # target_spe = st.session_state["cache_dicts"]['spectra_x']['target'][0]
+    # target_spe = st.session_state["cache_dicts"]['spectra_x']['target']
     st.write("DERIVING MODEL...")
     # calmodel = CalibrationModel()
     # find_kw = {"prominence": spe_neon.y_noise * calmodel.prominence_coeff,
@@ -906,9 +979,10 @@ elif x_calib_btn == "btn_save_y_calibration":
     ycertificate_data: YCalibrationCertificate = st.session_state["cache_dicts"][
         "instrument_settings"
     ]["certificate_data"]
-    reference_spe_xcalibrated = neon_spe = st.session_state["cache_dicts"][
-        "spectra_x_current"
-    ]["neon"]
+    reference_spe_xcalibrated = st.session_state["cache_dicts"]["spectra_x_current"][
+        "neon"
+    ]
+
     laser_wl = ycertificate_data.wavelength
 
     st.write(ycertificate_data)
