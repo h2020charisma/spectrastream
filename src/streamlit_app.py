@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
-
 import pandas as pd
-
 import streamlit as st
 from front_end.htmlTemplates import css
 
@@ -24,6 +22,9 @@ from ramanchada2.protocols.calibration import CalibrationModel
 # with st.sidebar:
 
 #     st.sidebar.image("./front_end/images/logo_charisma.jpg")
+
+# from pathlib import Path
+# rpath = Path(__file__).parent.resolve()
 
 st.title("This is the Fron Page title")
 

@@ -11,9 +11,32 @@ from streamlit.runtime.uploaded_file_manager import (DeletedFile,
 
 from collections import defaultdict
 import pandas as pd
+import pickle
 
 
-def process_file_spe(uploaded_files: list[UploadedFile], label=None) -> None:
+def simple_plot_spe(spe, label, xlabel):
+    # ax = spe.plot(label="Target spe")
+    # fig = ax.get_figure()
+    # st.pyplot(fig)
+    # fig, ax = plt.subplots()
+    # ax.set_xlabel(xlabel)
+    ax = spe.plot(label=label)
+    fig = ax.get_figure()
+    # fig.set_size_inches(30, 15)
+    st.pyplot(fig)
+
+
+def load_calibration_file(uploaded_file: UploadedFile):  # ->
+    extension = os.path.splitext(uploaded_file.name)[1][1:]
+    return pickle.load(uploaded_file)
+
+    # with tempfile.NamedTemporaryFile() as f:
+    #     f.write(uploaded_file.read())
+    #     f.flush()
+    #     return pickle.load(f.name)
+
+
+def process_file_spe(uploaded_files: list[UploadedFile], label=None, units="nm"):
     out_spe = []
     for uploaded_file in uploaded_files:
         # st.write(uploaded_file)
@@ -41,6 +64,7 @@ def process_file_spe(uploaded_files: list[UploadedFile], label=None) -> None:
             meta_dct["Temporary file"] = f.name
             meta_dct["step"] = "Raw spe"
             meta_dct["label"] = str(label)
+            meta_dct["units"] = units
             spe.meta = meta_dct
             out_spe.append(spe)
     return out_spe[0]
