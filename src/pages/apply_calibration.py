@@ -8,13 +8,9 @@ from front_end.htmlTemplates import css
 
 from modules.navigation_bar import navbar
 
-from modules.util import plot_original_x_calib_spe, process_file_spe
+from modules.util import plot_original_x_calib_spe, process_file_spe, simple_plot_spe
 
 from ramanchada2.protocols.calibration import CalibrationModel
-
-from modules.util import (
-    simple_plot_spe
-)
 
 navbar()
 
@@ -86,7 +82,9 @@ with st.sidebar:
         #     st.write("Calibration not loaded or created...")
         # else:
         # assert "xcalibration_model" in st.session_state["cache_dicts"]["x_calibration"]
-        st.session_state["cache_dicts"]["page03_apply_calib"]['btn_press'] = "show_original_spe_btn"
+        st.session_state["cache_dicts"]["page03_apply_calib"][
+            "btn_press"
+        ] = "show_original_spe_btn"
 
     apply_x_calib_btn = st.button("Apply X-Calibration")
 
@@ -96,12 +94,14 @@ with st.sidebar:
         #     st.write("Calibration not loaded or created...")
         # else:
         assert "xcalibration_model" in st.session_state["cache_dicts"]["x_calibration"]
-        st.session_state["cache_dicts"]["page03_apply_calib"]['btn_press'] = "apply_x_calib_btn"
+        st.session_state["cache_dicts"]["page03_apply_calib"][
+            "btn_press"
+        ] = "apply_x_calib_btn"
 
 
 btn_press = None
-if 'btn_press' in st.session_state["cache_dicts"]["page03_apply_calib"]:
-    btn_press = st.session_state["cache_dicts"]["page03_apply_calib"]['btn_press']
+if "btn_press" in st.session_state["cache_dicts"]["page03_apply_calib"]:
+    btn_press = st.session_state["cache_dicts"]["page03_apply_calib"]["btn_press"]
 
 target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"]
 
@@ -110,15 +110,16 @@ if btn_press == "apply_x_calib_btn":
     calmodel = st.session_state["cache_dicts"]["x_calibration"]["xcalibration_model"]
 
     target_spe_units = target_spe.meta["units"]
-    target_spe_calibrated = calmodel.apply_calibration_x(target_spe,
-                                                         spe_units=target_spe_units)
-    simple_plot_spe(spe=target_spe_calibrated,
-                    label="X-Calibrated spe", xlabel=r"Raman shift")
+    target_spe_calibrated = calmodel.apply_calibration_x(
+        target_spe, spe_units=target_spe_units
+    )
+    simple_plot_spe(
+        spe=target_spe_calibrated, label="X-Calibrated spe", xlabel=r"Raman shift"
+    )
 
 elif btn_press == "show_original_spe_btn":
 
-    simple_plot_spe(spe=target_spe,
-                    label="Target spe", xlabel=r"Raman shift")
+    simple_plot_spe(spe=target_spe, label="Target spe", xlabel=r"Raman shift")
 
     # def apply_calibration_x(self, old_spe: Spectrum, spe_units="cm-1"):
     #     # neon calibration converts to nm

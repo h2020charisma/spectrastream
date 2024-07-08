@@ -1,17 +1,16 @@
 import os
+import pickle
 import tempfile
+
+from collections import defaultdict
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import matplotlib.pyplot as plt
+import pandas as pd
 import ramanchada2 as rc2
 import streamlit as st
-from streamlit.runtime.uploaded_file_manager import (DeletedFile,
-                                                     UploadedFile)
-
-from collections import defaultdict
-import pandas as pd
-import pickle
+from streamlit.runtime.uploaded_file_manager import DeletedFile, UploadedFile
 
 
 def simple_plot_spe(spe, label, xlabel):

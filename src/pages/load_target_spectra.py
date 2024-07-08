@@ -42,8 +42,7 @@ with st.sidebar:
     def set_target_spe_choice_change():
 
         spe_choice = st.session_state["cache_strings"]["target_spe_choice"]
-        assert spe_choice in target_spe_choices, (
-            spe_choice, target_spe_choices)
+        assert spe_choice in target_spe_choices, (spe_choice, target_spe_choices)
         if spe_choice == "Search target spectrum":
             set_spe_choice = "Load target spectrum"
         else:  # spe_choice == 'Load target spectrum':
@@ -74,14 +73,12 @@ with st.sidebar:
 
     if target_spe_choice == "Search target spectrum":
         with st.sidebar:
-            existing_calibration = st.text_input(
-                "Search for target spectra in DB", "")
+            existing_calibration = st.text_input("Search for target spectra in DB", "")
     else:
 
         with st.form("Load target spectra"):
 
-            units = st.selectbox(label="Select units", options=[
-                                 "cm-1", "nm"], index=0)
+            units = st.selectbox(label="Select units", options=["cm-1", "nm"], index=0)
 
             uploaded_target_spec = st.file_uploader(
                 "Load spectrum file", accept_multiple_files=False
@@ -91,17 +88,21 @@ with st.sidebar:
 
         if upload_target_spe_btn and uploaded_target_spec:
             target_spe = process_file_spe(
-                [uploaded_target_spec], label="Target", units=units)
+                [uploaded_target_spec], label="Target", units=units
+            )
 
             # Produces Error if meta spe is updated --> to be fixed
             # meta_dct = target_spe.meta
             # meta_dct["units"] = units
             # target_spe.meta = meta_dct
 
-            st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"] = target_spe
+            st.session_state["cache_dicts"]["page01_load_spe"][
+                "target_spe"
+            ] = target_spe
 
-            st.session_state["cache_strings"]["btn_load_target_spe"] = \
-                "uploaded_target_spectra_btn"
+            st.session_state["cache_strings"][
+                "btn_load_target_spe"
+            ] = "uploaded_target_spectra_btn"
 
 
 btn_load_target_spe = st.session_state["cache_strings"]["btn_load_target_spe"]
@@ -109,8 +110,7 @@ btn_load_target_spe = st.session_state["cache_strings"]["btn_load_target_spe"]
 
 if btn_load_target_spe == "uploaded_target_spectra_btn":
     target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"]
-    ax = target_spe.plot(label="Target spe {}".format(
-        target_spe.meta["units"]))
+    ax = target_spe.plot(label="Target spe {}".format(target_spe.meta["units"]))
     fig = ax.get_figure()
     st.pyplot(fig)
 

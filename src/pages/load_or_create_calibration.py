@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from collections import defaultdict
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
@@ -9,11 +11,11 @@ from front_end.htmlTemplates import css
 from modules.navigation_bar import navbar
 
 from modules.util import (
+    load_calibration_file,
     plot_original_x_calib_spe,
     process_file_spe,
+    simple_plot_spe,
     update_session_state,
-    load_calibration_file,
-    simple_plot_spe
 )
 
 from ramanchada2.protocols.calibration import (
@@ -24,8 +26,6 @@ from ramanchada2.protocols.calibration import (
     YCalibrationComponent,
 )
 
-from pathlib import Path
-
 rpath = Path(__file__).parents[1].resolve()
 
 # from pages.load_target_spectra import page_1_session_state, this_int
@@ -35,7 +35,7 @@ st.set_page_config(
     page_title="Raman spectroscopy harmonisation",
     page_icon=str(rpath / "front_end/images/logo_charisma.jpg"),
     # page_icon="../front_end/images/logo_charisma.jpg",
-    layout="centered"
+    layout="centered",
 )
 
 st.write(css, unsafe_allow_html=True)
@@ -138,8 +138,12 @@ def load_calibration():
         # load_calibration_file
 
         xcalibration = load_calibration_file(uploaded_calibration)
-        st.session_state["cache_dicts"]["x_calibration"]["xcalibration_model"] = xcalibration
-        st.session_state["cache_strings"]["x_calibration"] = "uploaded_x_calibration_btn"
+        st.session_state["cache_dicts"]["x_calibration"][
+            "xcalibration_model"
+        ] = xcalibration
+        st.session_state["cache_strings"][
+            "x_calibration"
+        ] = "uploaded_x_calibration_btn"
 
         return xcalibration
     return None
@@ -151,8 +155,7 @@ def load_calibration_spectra():
 
         # st.session_state['cache_strings']['x_calibration']
         # if calibration_choice == "X-calibration":
-        units = st.selectbox(label="Select units", options=[
-            "cm-1", "nm"], index=1)
+        units = st.selectbox(label="Select units", options=["cm-1", "nm"], index=1)
 
         uploaded_neon_spec = st.file_uploader(
             "Load Neon spectra file", accept_multiple_files=False
@@ -161,13 +164,13 @@ def load_calibration_spectra():
         upload_neon_spe_btn = st.form_submit_button("Set spe file")
 
     if upload_neon_spe_btn and uploaded_neon_spec:
-        neon_spe = process_file_spe(
-            [uploaded_neon_spec], label="Neon", units=units)
+        neon_spe = process_file_spe([uploaded_neon_spec], label="Neon", units=units)
         # meta_dct = target_spe.meta
         st.session_state["cache_dicts"]["spectra_x"]["neon"] = neon_spe
 
-        st.session_state["cache_strings"]["x_calibration"] = \
-            "uploaded_neon_calib_spectra_btn"
+        st.session_state["cache_strings"][
+            "x_calibration"
+        ] = "uploaded_neon_calib_spectra_btn"
 
     # uploaded_neon_spec = st.file_uploader(
     #     "Load Neon spectra file", accept_multiple_files=False
@@ -188,8 +191,7 @@ def load_calibration_spectra():
 
         # st.session_state['cache_strings']['x_calibration']
         # if calibration_choice == "X-calibration":
-        units = st.selectbox(label="Select units", options=[
-            "cm-1", "nm"], index=0)
+        units = st.selectbox(label="Select units", options=["cm-1", "nm"], index=0)
 
         uploaded_si_spec = st.file_uploader(
             "Load Si spectra file", accept_multiple_files=False
@@ -198,13 +200,13 @@ def load_calibration_spectra():
         upload_si_spe_btn = st.form_submit_button("Set spe file")
 
     if upload_si_spe_btn and uploaded_si_spec:
-        si_spe = process_file_spe(
-            [uploaded_si_spec], label="Si", units=units)
+        si_spe = process_file_spe([uploaded_si_spec], label="Si", units=units)
         # meta_dct = target_spe.meta
         st.session_state["cache_dicts"]["spectra_x"]["si"] = si_spe
 
-        st.session_state["cache_strings"]["x_calibration"] = \
-            "uploaded_si_calib_spectra_btn"
+        st.session_state["cache_strings"][
+            "x_calibration"
+        ] = "uploaded_si_calib_spectra_btn"
 
     # uploaded_si_spec = st.file_uploader(
     #     "Load Si spectra file", accept_multiple_files=False
@@ -257,8 +259,7 @@ def create_x_calibration_sidebar_expander():
             # st.write("Derive X-calibration")
             # st.write("X-calibration setup")
 
-            submitted_btn_derive_x = st.form_submit_button(
-                "Derive X-Calibration")
+            submitted_btn_derive_x = st.form_submit_button("Derive X-Calibration")
 
             if submitted_btn_derive_x:
                 st.session_state["cache_strings"][
@@ -268,14 +269,17 @@ def create_x_calibration_sidebar_expander():
         with st.form("Save X-calibration"):
             # st.write("Save X-calibration")
             calibration_file_name = st.text_input(
-                label="Calibration file name", value="calibration_model01.pkl")
+                label="Calibration file name", value="calibration_model01.pkl"
+            )
             submitted_btn_save_x = st.form_submit_button("Save X-Calibration")
 
             if submitted_btn_save_x:
-                st.session_state["cache_dicts"]["x_calibration"]["xcalibration_filename"] = \
-                    calibration_file_name
-                st.session_state["cache_strings"]["x_calibration"] = \
-                    "btn_save_x_calibration"
+                st.session_state["cache_dicts"]["x_calibration"][
+                    "xcalibration_filename"
+                ] = calibration_file_name
+                st.session_state["cache_strings"][
+                    "x_calibration"
+                ] = "btn_save_x_calibration"
 
 
 def create_y_calibration_sidebar_expander():
@@ -312,8 +316,7 @@ def create_y_calibration_sidebar_expander():
         with st.form("SRM experimental"):
             st.write("SRM Experimental spectrum")
 
-            submitted_btn_srm_experimental = st.form_submit_button(
-                "SRM Experimental")
+            submitted_btn_srm_experimental = st.form_submit_button("SRM Experimental")
             if submitted_btn_srm_experimental:
                 st.session_state["cache_strings"][
                     "x_calibration"
@@ -403,8 +406,7 @@ def process_x_calibration_neon_creation():
             "neon"
         ] = neon_normalized_spe
 
-        simple_plot_spe(spe=neon_normalized_spe,
-                        label="Neon", xlabel=r"Raman shift")
+        simple_plot_spe(spe=neon_normalized_spe, label="Neon", xlabel=r"Raman shift")
 
         # fig, ax = plt.subplots(figsize=(30, 15))
         # neon_normalized_spe.plot(ax=ax)
@@ -481,8 +483,7 @@ def process_x_calibration_neon_creation():
                 on_change=update_x_calibration_btn("submitted_std1_btn"),
             )
 
-            options_strategy = [
-                "topo", "bayesian_gaussian_mixture", "bgm", "cwt"]
+            options_strategy = ["topo", "bayesian_gaussian_mixture", "bgm", "cwt"]
 
             # st.write(value_strategy)
             strategy = st.selectbox(
@@ -549,8 +550,9 @@ def process_x_calibration_neon_creation():
             "no_fit": no_fit,
         }
         neon_spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
-        neon_peak_candidates = \
-            st.session_state["cache_dicts"]["spectra_x_peak_candidates"]["neon"]
+        neon_peak_candidates = st.session_state["cache_dicts"][
+            "spectra_x_peak_candidates"
+        ]["neon"]
 
         fitres = neon_spe.fit_peak_multimodel(
             profile=profile, candidates=neon_peak_candidates, no_fit=True
@@ -574,12 +576,7 @@ def process_x_calibration_si_creation():
     ###############################################
     # st.write(' in elif x_calib_btn std2')
     load_ts, crop_tn, baseline_tn, normalize_ts, peakfind_ts, peakfit_ts = st.tabs(
-        ["Show spe",
-         "Crop",
-         "Baseline corr",
-         "Normalize",
-         "Peak find",
-         "Peak fitting"]
+        ["Show spe", "Crop", "Baseline corr", "Normalize", "Peak find", "Peak fitting"]
     )
 
     with load_ts:
@@ -634,8 +631,7 @@ def process_x_calibration_si_creation():
                 "si"
             ] = baseline_corr_spe
 
-        simple_plot_spe(spe=baseline_corr_spe,
-                        label="Si", xlabel=r"Raman shift")
+        simple_plot_spe(spe=baseline_corr_spe, label="Si", xlabel=r"Raman shift")
 
     with normalize_ts:
         # st.write('normlaize tab')
@@ -717,8 +713,7 @@ def process_x_calibration_si_creation():
                 on_change=update_x_calibration_btn("submitted_std1_btn"),
             )
 
-            options_strategy = [
-                "topo", "bayesian_gaussian_mixture", "bgm", "cwt"]
+            options_strategy = ["topo", "bayesian_gaussian_mixture", "bgm", "cwt"]
 
             # st.write(value_strategy)
             strategy = st.selectbox(
@@ -842,8 +837,7 @@ with st.sidebar:
 
 if calibration_choice == "Load/Search Calibration":
     with st.sidebar:
-        existing_calibration = st.text_input(
-            "Search for existing calibration", "")
+        existing_calibration = st.text_input("Search for existing calibration", "")
 
         calmodel = load_calibration()
 
@@ -877,11 +871,12 @@ if x_calib_btn == "uploaded_neon_calib_spectra_btn":
     neon_spe = st.session_state["cache_dicts"]["spectra_x"]["neon"]
     st.session_state["cache_dicts"]["spectra_x_current"]["neon"] = neon_spe
 
-    simple_plot_spe(spe=neon_spe, label="Neon",
-                    xlabel=r"Raman shift [$\mathrm{nm}$]")
+    simple_plot_spe(spe=neon_spe, label="Neon", xlabel=r"Raman shift [$\mathrm{nm}$]")
 elif x_calib_btn == "uploaded_x_calibration_btn":
 
-    xcalibration_model = st.session_state["cache_dicts"]["x_calibration"]["xcalibration_model"]
+    xcalibration_model = st.session_state["cache_dicts"]["x_calibration"][
+        "xcalibration_model"
+    ]
 
     ax = xcalibration_model.plot()
     fig = ax.get_figure()
@@ -894,8 +889,7 @@ elif x_calib_btn == "uploaded_si_calib_spectra_btn":
 
     st.session_state["cache_dicts"]["spectra_x_current"]["si"] = si_spe
 
-    simple_plot_spe(spe=si_spe, label="Si",
-                    xlabel=r"Raman shift [$\mathrm{cm}^{-1}$]")
+    simple_plot_spe(spe=si_spe, label="Si", xlabel=r"Raman shift [$\mathrm{cm}^{-1}$]")
     # fig, ax = plt.subplots()
     # fig.set_size_inches(30, 15)
     # ax.set_xlabel(xlabel)
@@ -928,15 +922,18 @@ elif x_calib_btn == "btn_derive_x_calibration":
     calmodel = CalibrationModel(laser_wl)
 
     find_kw_neon = {}
-    if 'neon_kwargs_find_peak' in st.session_state["cache_dicts"]["spectra_x_current"]:
-        find_kw_neon = st.session_state["cache_dicts"]["spectra_x_current"]["neon_kwargs_find_peak"]
+    if "neon_kwargs_find_peak" in st.session_state["cache_dicts"]["spectra_x_current"]:
+        find_kw_neon = st.session_state["cache_dicts"]["spectra_x_current"][
+            "neon_kwargs_find_peak"
+        ]
 
     # find_kw = {"prominence": neon_spe.y_noise * prominence,
     #            "wlen": laser_wl, "width":  self.kw_findpeak_width}
     fit_kw_neon = {}
-    if 'neon_kwargs_fit_peak' in st.session_state["cache_dicts"]["spectra_x_current"]:
+    if "neon_kwargs_fit_peak" in st.session_state["cache_dicts"]["spectra_x_current"]:
         fit_kw_neon = st.session_state["cache_dicts"]["spectra_x_current"][
-            "neon_kwargs_fit_peak"]
+            "neon_kwargs_fit_peak"
+        ]
 
     from ramanchada2.spectrum import Spectrum
 
@@ -965,7 +962,7 @@ elif x_calib_btn == "btn_derive_x_calibration":
     calibration_component_neon: XCalibrationComponent = calmodel.derive_model_curve(
         spe=neon_spe,
         ref=ref_spe,  # neon_spe,
-        spe_units=neon_spe.meta['units'],
+        spe_units=neon_spe.meta["units"],
         ref_units="nm",
         find_kw=find_kw_neon,
         fit_peaks_kw=fit_kw_neon,
@@ -980,7 +977,7 @@ elif x_calib_btn == "btn_derive_x_calibration":
     )
 
     find_kw_si = {}
-    if 'si_kwargs_find_peak' in st.session_state["cache_dicts"]["spectra_x_current"]:
+    if "si_kwargs_find_peak" in st.session_state["cache_dicts"]["spectra_x_current"]:
         find_kw_si = st.session_state["cache_dicts"]["spectra_x_current"][
             "si_kwargs_find_peak"
         ]
@@ -990,8 +987,8 @@ elif x_calib_btn == "btn_derive_x_calibration":
             "si_kwargs_fit_peak"
         ]
 
-    print('find_kw_si ', find_kw_si)
-    print('fit_kw_si ', fit_kw_si)
+    print("find_kw_si ", find_kw_si)
+    print("fit_kw_si ", fit_kw_si)
 
     spe_sil_ne_calib = spe_si_new
     # ref={520.45: 1}, spe_units="nm", ref_units=ref_sil_units,
@@ -1051,18 +1048,21 @@ elif x_calib_btn == "btn_derive_x_calibration":
 elif x_calib_btn == "btn_save_x_calibration":
     st.write("SAVE X-Calibraiton")
 
-    if not 'xcalibration_model' in st.session_state["cache_dicts"]["x_calibration"]:
+    if not "xcalibration_model" in st.session_state["cache_dicts"]["x_calibration"]:
         st.write("First derive calibration")
     else:
         # calibration_file_name = st.text_input(
         #     label="Calibration file name", value="calibration_model01.pkl")
-        xcalibration_filename = st.session_state["cache_dicts"]["x_calibration"]["xcalibration_filename"]
-        calmodel = st.session_state["cache_dicts"]["x_calibration"]["xcalibration_model"]
+        xcalibration_filename = st.session_state["cache_dicts"]["x_calibration"][
+            "xcalibration_filename"
+        ]
+        calmodel = st.session_state["cache_dicts"]["x_calibration"][
+            "xcalibration_model"
+        ]
         # './data/calibration_model01.pkl'
-        calmodel.save('./data/' + xcalibration_filename)
+        calmodel.save("./data/" + xcalibration_filename)
 
-        st.write("Saved X-calibration model in ",
-                 './data/' + xcalibration_filename)
+        st.write("Saved X-calibration model in ", "./data/" + xcalibration_filename)
     # plc_x_calibration.image(
     #     "src/data/images/screenshot_save_x_calibration01.png"
     # )
