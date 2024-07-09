@@ -84,7 +84,7 @@ with st.sidebar:
                 "Load spectrum file", accept_multiple_files=False
             )
 
-            upload_target_spe_btn = st.form_submit_button("Set spe file")
+            upload_target_spe_btn = st.form_submit_button("Show spectrum")
 
         if upload_target_spe_btn and uploaded_target_spec:
             target_spe = process_file_spe(

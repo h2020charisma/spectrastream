@@ -109,22 +109,23 @@ def instrument_settings_expander():
 
 def active_calibration_settings_expander():
     with st.expander("Active calibration settings", expanded=False):
-        value = (
-            10
-            if "prominence"
-            not in st.session_state["cache_dicts"]["active_calibration_settings"]
-            else st.session_state["cache_dicts"]["active_calibration_settings"][
-                "prominence"
-            ]
-        )
+        st.write("Set active calibration settings...")
+        # value = (
+        #     10
+        #     if "prominence"
+        #     not in st.session_state["cache_dicts"]["active_calibration_settings"]
+        #     else st.session_state["cache_dicts"]["active_calibration_settings"][
+        #         "prominence"
+        #     ]
+        # )
 
-        prominence = st.number_input(
-            label="Prominence", min_value=1, max_value=15, value=value, step=1
-        )
+        # prominence = st.number_input(
+        #     label="Prominence", min_value=1, max_value=15, value=value, step=1
+        # )
 
-        st.session_state["cache_dicts"]["active_calibration_settings"][
-            "prominence"
-        ] = prominence
+        # st.session_state["cache_dicts"]["active_calibration_settings"][
+        #     "prominence"
+        # ] = prominence
 
 
 def load_calibration():
@@ -155,18 +156,16 @@ def load_calibration_spectra():
 
         # st.session_state['cache_strings']['x_calibration']
         # if calibration_choice == "X-calibration":
-        units = st.selectbox(label="Select units", options=[
-                             "cm-1", "nm"], index=1)
+        units = st.selectbox(label="Select units", options=["cm-1", "nm"], index=0)
 
         uploaded_neon_spec = st.file_uploader(
             "Load Neon spectra file", accept_multiple_files=False
         )
 
-        upload_neon_spe_btn = st.form_submit_button("Set spe file")
+        upload_neon_spe_btn = st.form_submit_button("Show spectrum")
 
     if upload_neon_spe_btn and uploaded_neon_spec:
-        neon_spe = process_file_spe(
-            [uploaded_neon_spec], label="Neon", units=units)
+        neon_spe = process_file_spe([uploaded_neon_spec], label="Neon", units=units)
         # meta_dct = target_spe.meta
         st.session_state["cache_dicts"]["spectra_x"]["neon"] = neon_spe
 
@@ -193,14 +192,13 @@ def load_calibration_spectra():
 
         # st.session_state['cache_strings']['x_calibration']
         # if calibration_choice == "X-calibration":
-        units = st.selectbox(label="Select units", options=[
-                             "cm-1", "nm"], index=0)
+        units = st.selectbox(label="Select units", options=["cm-1", "nm"], index=0)
 
         uploaded_si_spec = st.file_uploader(
             "Load Si spectra file", accept_multiple_files=False
         )
 
-        upload_si_spe_btn = st.form_submit_button("Set spe file")
+        upload_si_spe_btn = st.form_submit_button("Show spectrum")
 
     if upload_si_spe_btn and uploaded_si_spec:
         si_spe = process_file_spe([uploaded_si_spec], label="Si", units=units)
@@ -262,8 +260,7 @@ def create_x_calibration_sidebar_expander():
             # st.write("Derive X-calibration")
             # st.write("X-calibration setup")
 
-            submitted_btn_derive_x = st.form_submit_button(
-                "Derive X-Calibration")
+            submitted_btn_derive_x = st.form_submit_button("Derive X-Calibration")
 
             if submitted_btn_derive_x:
                 st.session_state["cache_strings"][
@@ -320,24 +317,11 @@ def create_y_calibration_sidebar_expander():
         with st.form("SRM experimental"):
             st.write("SRM Experimental spectrum")
 
-            submitted_btn_srm_experimental = st.form_submit_button(
-                "SRM Experimental")
+            submitted_btn_srm_experimental = st.form_submit_button("SRM Experimental")
             if submitted_btn_srm_experimental:
                 st.session_state["cache_strings"][
                     "x_calibration"
                 ] = "submitted_btn_srm_experimental"
-
-                # page_call_STD1_X_Calibration()
-
-        # with st.form("SRM theoretical"):
-        #     st.write("SRM Theoretical spectrum")
-
-        #     submitted_btn_srm_theoretical = st.form_submit_button(
-        #         "SRM Theoretical")
-        #     if submitted_btn_srm_theoretical:
-        #         st.session_state["cache_strings"][
-        #             "x_calibration"
-        #         ] = "submitted_btn_srm_theoretical"
 
         with st.form("Derive Y-calibration"):
             st.write("Derive Y-calibration")
@@ -365,7 +349,7 @@ def process_x_calibration_neon_creation():
 
     load_tn, crop_tn, normalize_tn, peakfind_tn, peakfit_tn = st.tabs(
         [
-            "Show spe",
+            "Show",
             "Crop",  # 'Baseline corr',
             "Normalize",
             "Peak find",
@@ -379,221 +363,304 @@ def process_x_calibration_neon_creation():
 
         simple_plot_spe(spe=neon_spe, label="Neon", xlabel=r"Raman shift")
 
-        # fig, ax = plt.subplots(figsize=(30, 15))
-        # neon_spe.plot(ax=ax, label="Neon")
-        # st.pyplot(fig)
-
     with crop_tn:
-        spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
-        (left_val, right_val) = st.slider(
-            "Select range of X axis",
-            min(spe.x),
-            max(spe.x),
-            (min(spe.x), max(spe.x)),
-            on_change=update_x_calibration_btn("submitted_std2_btn"),
-        )
-        # st.write(left_val, right_val)
-        spe = spe.trim_axes(method="x-axis", boundaries=(left_val, right_val))
-        st.session_state["cache_dicts"]["spectra_x_current"]["neon"] = spe
-        st.session_state["cache_dicts"]["spectra_x_crop"]["neon"] = spe
 
-        simple_plot_spe(spe=neon_spe, label="Neon", xlabel=r"Raman shift")
+        spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
+
+        use_crop = st.checkbox(
+            label="Use crop",
+            on_change=update_x_calibration_btn("submitted_std1_btn"),
+        )
+
+        # Create a form for the input fields and submit button
+        with st.form(key="neon_crop_form"):
+            # Create three columns: two for input fields and one for the submit button
+            col0, col1, col2 = st.columns([0.5, 1, 1])
+
+            with col0:
+                st.write("")  # This is to adjust the position of the button
+                submit_neon_crop_btn = st.form_submit_button(
+                    label="Set range",
+                    #   disabled=not use_crop
+                )
+            with col1:
+                min_val = st.number_input(
+                    "Minimum Value:",
+                    value=min(spe.x),
+                    format="%f",
+                    # disabled=not use_crop
+                )
+            with col2:
+                max_val = st.number_input(
+                    "Maximum Value:",
+                    value=max(spe.x),
+                    format="%f",
+                    # disabled=not use_crop
+                )
+
+        # Check if the form is submitted
+        if submit_neon_crop_btn:
+            if min_val > max_val:
+                st.error("Minimum value cannot be greater than Maximum value.")
+            # else:
+            update_x_calibration_btn("submitted_std1_btn")
+            # st.success(f"Range set from {min_val} to {max_val}")
+
+            spe_croped = spe.trim_axes(method="x-axis", boundaries=(min_val, max_val))
+
+            simple_plot_spe(spe=spe_croped, label="Neon crop", xlabel=r"Raman shift")
+
+            if use_crop:
+                st.session_state["cache_dicts"]["spectra_x_current"][
+                    "neon"
+                ] = spe_croped
+                st.session_state["cache_dicts"]["spectra_x_crop"]["neon"] = spe_croped
 
     with normalize_tn:
-        # st.write('normlaize tab')
-        neon_spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
 
-        neon_normalized_spe = neon_spe.normalize()
-        st.session_state["cache_dicts"]["spectra_x_normalized"][
-            "neon"
-        ] = neon_normalized_spe
-        st.session_state["cache_dicts"]["spectra_x_current"][
-            "neon"
-        ] = neon_normalized_spe
+        use_normalize = st.checkbox(
+            key="neon_normalize_checkbox",
+            label="Use normalization",
+            on_change=update_x_calibration_btn("submitted_std1_btn"),
+        )
 
-        simple_plot_spe(spe=neon_normalized_spe,
-                        label="Neon", xlabel=r"Raman shift")
+        if use_normalize:
+            # st.write('normlaize tab')
+            neon_spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
+
+            neon_normalized_spe = neon_spe.normalize()
+            st.session_state["cache_dicts"]["spectra_x_normalized"][
+                "neon"
+            ] = neon_normalized_spe
+            st.session_state["cache_dicts"]["spectra_x_current"][
+                "neon"
+            ] = neon_normalized_spe
+
+            simple_plot_spe(
+                spe=neon_normalized_spe, label="Neon", xlabel=r"Raman shift"
+            )
 
         # fig, ax = plt.subplots(figsize=(30, 15))
         # neon_normalized_spe.plot(ax=ax)
         # st.pyplot(fig)
 
     with peakfind_tn:
+
+        use_peakfind = st.checkbox(
+            key="neon_peak_find_checkbox",
+            label="Use Peak find",
+            on_change=update_x_calibration_btn("submitted_std1_btn"),
+        )
+
         # st.write('Peak find')
         neon_spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
 
-        # st.write('neon spe y noise')
-        # st.write(neon_spe.y_noise)
+        # Create a form for the input fields and submit button
+        with st.form(key="neon_peakfind_form"):
 
-        if (
-            "neon_kwargs_find_peak"
-            not in st.session_state["cache_dicts"]["spectra_x_current"]
-        ):
-
-            value_prominence = neon_spe.y_noise
-            value_wlen = 200
-            value_width = 2
-            value_hht_chain = 80
-            value_sharpening = None
-            value_strategy = "topo"
-        else:
-            kwargs = st.session_state["cache_dicts"]["spectra_x_current"][
+            if (
                 "neon_kwargs_find_peak"
-            ]
-            value_prominence = kwargs["prominence"]
-            value_wlen = kwargs["wlen"]
-            value_width = kwargs["width"]
-            value_hht_chain = kwargs["hht_chain"][0]
-            value_sharpening = kwargs["sharpening"]
-            value_strategy = kwargs["strategy"]
+                not in st.session_state["cache_dicts"]["spectra_x_current"]
+            ):
+                # NB! value_prominance --> spe.y_noise does not find any peaks for 633 nm
+                value_prominence = 0.0  # neon_spe.y_noise
+                value_wlen = 200
+                value_width = 2
+                value_hht_chain = 80
+                value_sharpening = None
+                value_strategy = "topo"
+            else:
+                kwargs = st.session_state["cache_dicts"]["spectra_x_current"][
+                    "neon_kwargs_find_peak"
+                ]
+                value_prominence = kwargs["prominence"]
+                value_wlen = kwargs["wlen"]
+                value_width = kwargs["width"]
+                value_hht_chain = kwargs["hht_chain"][0]
+                value_sharpening = kwargs["sharpening"]
+                value_strategy = kwargs["strategy"]
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            wlen = st.number_input(
-                label="window length",
-                min_value=10,
-                max_value=800,
-                value=value_wlen,
-                on_change=update_x_calibration_btn("submitted_std1_btn"),
-            )
-            width = st.number_input(
-                label="width",
-                min_value=1,
-                max_value=10,
-                value=value_width,
-                on_change=update_x_calibration_btn("submitted_std1_btn"),
-            )
-        with col2:
-            hht_chain = st.number_input(
-                label="hht_chain[int]",
-                min_value=10,
-                max_value=150,
-                value=value_hht_chain,
-                on_change=update_x_calibration_btn("submitted_std1_btn"),
-            )
-            options_sharpening = ["hht", None]
-            sharpening = st.selectbox(
-                label="sharpening",
-                options=options_sharpening,
-                index=options_sharpening.index(value_sharpening),
-                on_change=update_x_calibration_btn("submitted_std1_btn"),
-            )
-        with col3:
+            col0, col1, col2, col3 = st.columns(4)
+            with col0:
+                st.write("")  # This is to adjust the position of the button
+                submit_find_peaks_neon_btn = st.form_submit_button(
+                    label="Find peaks",
+                    on_click=update_x_calibration_btn("submitted_std1_btn"),
+                )
+            with col1:
+                wlen = st.number_input(
+                    label="window length",
+                    min_value=10,
+                    max_value=800,
+                    value=value_wlen,
+                    # on_change=update_x_calibration_btn("submitted_std1_btn"),
+                )
+                width = st.number_input(
+                    label="width",
+                    min_value=1,
+                    max_value=10,
+                    value=value_width,
+                    # on_change=update_x_calibration_btn("submitted_std1_btn"),
+                )
+            with col2:
+                hht_chain = st.number_input(
+                    label="hht_chain[int]",
+                    min_value=10,
+                    max_value=150,
+                    value=value_hht_chain,
+                    # on_change=update_x_calibration_btn("submitted_std1_btn"),
+                )
+                options_sharpening = ["hht", None]
+                sharpening = st.selectbox(
+                    label="sharpening",
+                    options=options_sharpening,
+                    index=options_sharpening.index(value_sharpening),
+                    # on_change=update_x_calibration_btn("submitted_std1_btn"),
+                )
+            with col3:
 
-            prominence = st.number_input(
-                label="prominence",
-                min_value=0.0,
-                max_value=10.0,
-                value=value_prominence,
-                step=0.001,
-                on_change=update_x_calibration_btn("submitted_std1_btn"),
-            )
+                prominence = st.number_input(
+                    label="prominence",
+                    min_value=0.0,
+                    max_value=500.0,
+                    value=value_prominence,
+                    step=0.001,
+                    # on_change=update_x_calibration_btn("submitted_std1_btn"),
+                )
 
-            options_strategy = [
-                "topo", "bayesian_gaussian_mixture", "bgm", "cwt"]
+                options_strategy = ["topo", "bayesian_gaussian_mixture", "bgm", "cwt"]
 
-            # st.write(value_strategy)
-            strategy = st.selectbox(
-                label="strategy",
-                options=options_strategy,
-                index=options_strategy.index(value_strategy),
-                on_change=update_x_calibration_btn("submitted_std1_btn"),
-            )
+                # st.write(value_strategy)
+                strategy = st.selectbox(
+                    label="strategy",
+                    options=options_strategy,
+                    index=options_strategy.index(value_strategy),
+                    # on_change=update_x_calibration_btn("submitted_std1_btn"),
+                )
 
-        kwargs = {
-            "wlen": wlen,
-            "width": width,
-            "hht_chain": [hht_chain],
-            "prominence": prominence,
-            "sharpening": sharpening,
-            "strategy": strategy,
-        }
+            if submit_find_peaks_neon_btn:
+                kwargs = {
+                    "wlen": wlen,
+                    "width": width,
+                    "hht_chain": [hht_chain],
+                    "prominence": prominence,
+                    "sharpening": sharpening,
+                    "strategy": strategy,
+                }
 
-        st.session_state["cache_dicts"]["spectra_x_current"][
-            "neon_kwargs_find_peak"
-        ] = kwargs
+                neon_peak_candidates = neon_spe.find_peak_multipeak(**kwargs)
 
-        neon_spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
-        neon_peak_candidates = neon_spe.find_peak_multipeak(**kwargs)
+                # fig, ax = plt.subplots(figsize=(30, 12))
+                fig, ax = plt.subplots()
 
-        st.session_state["cache_dicts"]["spectra_x_peak_candidates"][
-            "neon"
-        ] = neon_peak_candidates
+                neon_peak_candidates.plot(ax=ax, fmt=":", label="Neon")
 
-        fig, ax = plt.subplots(figsize=(30, 12))
-        fig, ax = plt.subplots()
+                st.pyplot(fig)
 
-        neon_peak_candidates.plot(ax=ax, fmt=":", label="Neon")
+                if use_peakfind:
 
-        st.pyplot(fig)
+                    st.session_state["cache_dicts"]["spectra_x_current"][
+                        "neon_kwargs_find_peak"
+                    ] = kwargs
+                    st.session_state["cache_dicts"]["spectra_x_peak_candidates"][
+                        "neon"
+                    ] = neon_peak_candidates
 
     with peakfit_tn:
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            profile = st.selectbox(
-                label="Profile",
-                options=[
-                    "Gaussian",
-                    "Moffat",
-                    "Lorentzian",
-                    "Voigt",
-                    "PseudoVoigt",
-                    "Pearson4",
-                    "Pearson7",
-                ],
-                on_change=update_x_calibration_btn("submitted_std1_btn"),
-            )
-        with col2:
-
-            no_fit = st.selectbox(
-                label="No fit",
-                options=[True, False],
-                on_change=update_x_calibration_btn("submitted_std1_btn"),
-            )
-
-        st.session_state["cache_dicts"]["spectra_x_current"]["neon_kwargs_fit_peak"] = {
-            "profile": profile,
-            "no_fit": no_fit,
-        }
-        neon_spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
-        neon_peak_candidates = st.session_state["cache_dicts"][
-            "spectra_x_peak_candidates"
-        ]["neon"]
-
-        fitres = neon_spe.fit_peak_multimodel(
-            profile=profile, candidates=neon_peak_candidates, no_fit=True
+        use_peakfit = st.checkbox(
+            key="neon_peak_fit_checkbox",
+            label="Use Peak find",
+            on_change=update_x_calibration_btn("submitted_std1_btn"),
         )
 
-        # fig, ax = plt.subplots(figsize=(30, 15))
-        fig, ax = plt.subplots()
+        with st.form(key="neon_peakfit_form"):
 
-        neon_spe.plot(ax=ax, fmt=":", label="Neon")
-        fitres.plot(
-            ax=ax,
-            peak_candidate_groups=neon_peak_candidates,
-            individual_peaks=True,
-            label=None,
-        )
-        st.pyplot(fig)
+            # if use_peakfit:
+            col0, col1, col2, col3 = st.columns(4)
+            with col0:
+                submit_neon_fitpeaks_btn = st.form_submit_button(
+                    label="Fit peaks",
+                    on_click=update_x_calibration_btn("submitted_std1_btn"),
+                )
+            with col1:
+                profile = st.selectbox(
+                    label="Profile",
+                    options=[
+                        "Gaussian",
+                        "Moffat",
+                        "Lorentzian",
+                        "Voigt",
+                        "PseudoVoigt",
+                        "Pearson4",
+                        "Pearson7",
+                    ],
+                    # on_change=update_x_calibration_btn("submitted_std1_btn"),
+                )
+            with col2:
+
+                no_fit = st.selectbox(
+                    label="No fit",
+                    options=[True, False],
+                    # on_change=update_x_calibration_btn("submitted_std1_btn"),
+                )
+
+            if submit_neon_fitpeaks_btn:
+                # st.session_state["cache_dicts"]["spectra_x_current"]["neon_kwargs_fit_peak"] = {
+                #     "profile": profile,
+                #     "no_fit": no_fit,
+                # }
+                neon_spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
+                neon_peak_candidates = st.session_state["cache_dicts"][
+                    "spectra_x_peak_candidates"
+                ]["neon"]
+
+                fitres = neon_spe.fit_peak_multimodel(
+                    profile=profile, candidates=neon_peak_candidates, no_fit=no_fit
+                )
+
+                # fig, ax = plt.subplots(figsize=(30, 15))
+                fig, ax = plt.subplots()
+
+                neon_spe.plot(ax=ax, fmt=":", label="Neon")
+                fitres.plot(
+                    ax=ax,
+                    peak_candidate_groups=neon_peak_candidates,
+                    individual_peaks=True,
+                    label=None,
+                )
+                st.pyplot(fig)
+
+                if use_peakfit:
+                    st.session_state["cache_dicts"]["spectra_x_current"][
+                        "neon_kwargs_fit_peak"
+                    ] = {
+                        "profile": profile,
+                        "no_fit": no_fit,
+                    }
+
+                    st.session_state["cache_dicts"]["spectra_x_peak_fitres"][
+                        "neon"
+                    ] = fitres
 
 
 def process_x_calibration_si_creation():
     material = "si"
     ###############################################
     # st.write(' in elif x_calib_btn std2')
-    load_ts, crop_tn, baseline_tn, normalize_ts, peakfind_ts, peakfit_ts = st.tabs(
-        ["Show spe", "Crop", "Baseline corr",
-            "Normalize", "Peak find", "Peak fitting"]
+    load_tss, crop_tns, baseline_tns, normalize_tss, peakfind_tss, peakfit_tss = (
+        st.tabs(
+            ["Show", "Crop", "Baseline corr", "Normalize", "Peak find", "Peak fitting"]
+        )
     )
 
-    with load_ts:
+    with load_tss:
         spe = st.session_state["cache_dicts"]["spectra_x"][material]
         st.session_state["cache_dicts"]["spectra_x_current"][material] = spe
 
         simple_plot_spe(spe=spe, label="Si", xlabel=r"Raman shift")
 
-    with crop_tn:
+    with crop_tns:
         spe = st.session_state["cache_dicts"]["spectra_x_current"][material]
         (left_val, right_val) = st.slider(
             "Select range of X axis",
@@ -609,7 +676,7 @@ def process_x_calibration_si_creation():
 
         simple_plot_spe(spe=spe, label="Si", xlabel=r"Raman shift")
 
-    with baseline_tn:
+    with baseline_tns:
         use_baseline_corr = st.checkbox(
             label="Use baseline correction",
             on_change=update_x_calibration_btn("submitted_std2_btn"),
@@ -639,10 +706,9 @@ def process_x_calibration_si_creation():
                 "si"
             ] = baseline_corr_spe
 
-        simple_plot_spe(spe=baseline_corr_spe,
-                        label="Si", xlabel=r"Raman shift")
+        simple_plot_spe(spe=baseline_corr_spe, label="Si", xlabel=r"Raman shift")
 
-    with normalize_ts:
+    with normalize_tss:
         # st.write('normlaize tab')
         spe = st.session_state["cache_dicts"]["spectra_x_current"][material]
 
@@ -654,7 +720,7 @@ def process_x_calibration_si_creation():
 
         simple_plot_spe(spe=normalized_spe, label="Si", xlabel=r"Raman shift")
 
-    with peakfind_ts:
+    with peakfind_tss:
 
         spe = st.session_state["cache_dicts"]["spectra_x_current"][material]
 
@@ -722,8 +788,7 @@ def process_x_calibration_si_creation():
                 on_change=update_x_calibration_btn("submitted_std1_btn"),
             )
 
-            options_strategy = [
-                "topo", "bayesian_gaussian_mixture", "bgm", "cwt"]
+            options_strategy = ["topo", "bayesian_gaussian_mixture", "bgm", "cwt"]
 
             # st.write(value_strategy)
             strategy = st.selectbox(
@@ -760,7 +825,7 @@ def process_x_calibration_si_creation():
 
         st.pyplot(fig)
 
-    with peakfit_ts:
+    with peakfit_tss:
         col1, col2, col3 = st.columns(3)
         with col1:
 
@@ -814,13 +879,8 @@ def process_x_calibration_si_creation():
 def update_x_calibration_btn(value):
     def update_x_calibraiton_val():
         st.session_state["cache_strings"]["x_calibration_"] = value
-        # print('in update_x_calibration_val')
-        # print(' ini...', st.session_state["cache_strings"]["x_calibration_"])
 
     return update_x_calibraiton_val
-    # print('inside update x calib')
-    # print()
-    # st.session_state["cache_strings"]["x_calibration_"] = "submitted_std1_btn"
 
 
 with st.sidebar:
@@ -847,8 +907,7 @@ with st.sidebar:
 
 if calibration_choice == "Load/Search Calibration":
     with st.sidebar:
-        existing_calibration = st.text_input(
-            "Search for existing calibration", "")
+        existing_calibration = st.text_input("Search for existing calibration", "")
 
         calmodel = load_calibration()
 
@@ -882,8 +941,7 @@ if x_calib_btn == "uploaded_neon_calib_spectra_btn":
     neon_spe = st.session_state["cache_dicts"]["spectra_x"]["neon"]
     st.session_state["cache_dicts"]["spectra_x_current"]["neon"] = neon_spe
 
-    simple_plot_spe(spe=neon_spe, label="Neon",
-                    xlabel=r"Raman shift [$\mathrm{nm}$]")
+    simple_plot_spe(spe=neon_spe, label="Neon", xlabel=r"Raman shift [$\mathrm{nm}$]")
 elif x_calib_btn == "uploaded_x_calibration_btn":
 
     xcalibration_model = st.session_state["cache_dicts"]["x_calibration"][
@@ -901,8 +959,7 @@ elif x_calib_btn == "uploaded_si_calib_spectra_btn":
 
     st.session_state["cache_dicts"]["spectra_x_current"]["si"] = si_spe
 
-    simple_plot_spe(spe=si_spe, label="Si",
-                    xlabel=r"Raman shift [$\mathrm{cm}^{-1}$]")
+    simple_plot_spe(spe=si_spe, label="Si", xlabel=r"Raman shift [$\mathrm{cm}^{-1}$]")
     # fig, ax = plt.subplots()
     # fig.set_size_inches(30, 15)
     # ax.set_xlabel(xlabel)
@@ -924,13 +981,6 @@ elif x_calib_btn == "btn_derive_x_calibration":
     si_spe = st.session_state["cache_dicts"]["spectra_x_current"]["si"]
 
     laser_wl = st.session_state["cache_dicts"]["instrument_settings"]["instrument_wl"]
-    # ycertificate_data: YCalibrationCertificate = \
-    #     st.session_state["cache_dicts"]['instrument_settings'
-    #                                     ]['certificate_data']
-    # laser_wl = ycertificate_data.wavelength
-
-    # prominence = st.session_state["cache_dicts"]["active_calibration_settings"
-    #                                              ]["prominence"]
 
     calmodel = CalibrationModel(laser_wl)
 
@@ -1024,7 +1074,7 @@ elif x_calib_btn == "btn_derive_x_calibration":
     fig.set_size_inches(40, 25)
     st.pyplot(fig)
 
-    st.write("DERIVING MODEL...")
+    st.write("DERIVED MODEL")
     # calmodel.save('./data/calibration_model01.pkl')
     # !!! Save the calmodel !!! and use in the Ycalibration
 
@@ -1073,12 +1123,11 @@ elif x_calib_btn == "btn_save_x_calibration":
             "xcalibration_model"
         ]
         # './data/calibration_model01.pkl'
-        path = str(rpath / 'data' / xcalibration_filename)
+        path = str(rpath / "data" / xcalibration_filename)
         calmodel.save(path)
         # calmodel.save("./data/" + xcalibration_filename)
 
-        st.write("Saved X-calibration model in ",
-                 "./data/" + xcalibration_filename)
+        st.write("Saved X-calibration model in ", "./data/" + xcalibration_filename)
     # plc_x_calibration.image(
     #     "src/data/images/screenshot_save_x_calibration01.png"
     # )
