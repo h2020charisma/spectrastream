@@ -156,7 +156,8 @@ def load_calibration_spectra():
 
         # st.session_state['cache_strings']['x_calibration']
         # if calibration_choice == "X-calibration":
-        units = st.selectbox(label="Select units", options=["cm-1", "nm"], index=0)
+        units = st.selectbox(label="Select units", options=[
+                             "cm-1", "nm"], index=0)
 
         uploaded_neon_spec = st.file_uploader(
             "Load Neon spectra file", accept_multiple_files=False
@@ -165,7 +166,8 @@ def load_calibration_spectra():
         upload_neon_spe_btn = st.form_submit_button("Show spectrum")
 
     if upload_neon_spe_btn and uploaded_neon_spec:
-        neon_spe = process_file_spe([uploaded_neon_spec], label="Neon", units=units)
+        neon_spe = process_file_spe(
+            [uploaded_neon_spec], label="Neon", units=units)
         # meta_dct = target_spe.meta
         st.session_state["cache_dicts"]["spectra_x"]["neon"] = neon_spe
 
@@ -192,7 +194,8 @@ def load_calibration_spectra():
 
         # st.session_state['cache_strings']['x_calibration']
         # if calibration_choice == "X-calibration":
-        units = st.selectbox(label="Select units", options=["cm-1", "nm"], index=0)
+        units = st.selectbox(label="Select units", options=[
+                             "cm-1", "nm"], index=0)
 
         uploaded_si_spec = st.file_uploader(
             "Load Si spectra file", accept_multiple_files=False
@@ -260,27 +263,47 @@ def create_x_calibration_sidebar_expander():
             # st.write("Derive X-calibration")
             # st.write("X-calibration setup")
 
-            submitted_btn_derive_x = st.form_submit_button("Derive X-Calibration")
+            submitted_btn_derive_x = st.form_submit_button(
+                "Derive X-Calibration")
 
             if submitted_btn_derive_x:
                 st.session_state["cache_strings"][
                     "x_calibration"
                 ] = "btn_derive_x_calibration"
+        import pickle
 
-        with st.form("Save X-calibration"):
-            # st.write("Save X-calibration")
-            calibration_file_name = st.text_input(
-                label="Calibration file name", value="calibration_model01.pkl"
+        calibration_file_name = st.text_input(
+            label="Calibration file name", value="calibration_model01.pkl"
+        )
+        if "xcalibration_model" in st.session_state["cache_dicts"]["x_calibration"]:
+            calmodel = st.session_state["cache_dicts"]["x_calibration"][
+                "xcalibration_model"
+            ]
+            st.download_button(
+                "Download Model",
+                data=pickle.dumps(calmodel),
+                file_name=calibration_file_name,
             )
-            submitted_btn_save_x = st.form_submit_button("Save X-Calibration")
+        # with st.form("Save X-calibration"):
+        #     # st.write("Save X-calibration")
+        #     calibration_file_name = st.text_input(
+        #         label="Calibration file name", value="calibration_model01.pkl"
+        #     )
+        #     submitted_btn_save_x = st.form_submit_button("Save X-Calibration")
 
-            if submitted_btn_save_x:
-                st.session_state["cache_dicts"]["x_calibration"][
-                    "xcalibration_filename"
-                ] = calibration_file_name
-                st.session_state["cache_strings"][
-                    "x_calibration"
-                ] = "btn_save_x_calibration"
+        #     if submitted_btn_save_x:
+        #         st.session_state["cache_dicts"]["x_calibration"][
+        #             "xcalibration_filename"
+        #         ] = calibration_file_name
+
+        #         st.download_button(
+        #             "Download Model",
+        #             data=pickle.dumps(clf),
+        #             file_name=calibration_file_name,
+        #         )
+        #         st.session_state["cache_strings"][
+        #             "x_calibration"
+        #         ] = "btn_save_x_calibration"
 
 
 def create_y_calibration_sidebar_expander():
@@ -317,7 +340,8 @@ def create_y_calibration_sidebar_expander():
         with st.form("SRM experimental"):
             st.write("SRM Experimental spectrum")
 
-            submitted_btn_srm_experimental = st.form_submit_button("SRM Experimental")
+            submitted_btn_srm_experimental = st.form_submit_button(
+                "SRM Experimental")
             if submitted_btn_srm_experimental:
                 st.session_state["cache_strings"][
                     "x_calibration"
@@ -406,9 +430,11 @@ def process_x_calibration_neon_creation():
             update_x_calibration_btn("submitted_std1_btn")
             # st.success(f"Range set from {min_val} to {max_val}")
 
-            spe_croped = spe.trim_axes(method="x-axis", boundaries=(min_val, max_val))
+            spe_croped = spe.trim_axes(
+                method="x-axis", boundaries=(min_val, max_val))
 
-            simple_plot_spe(spe=spe_croped, label="Neon crop", xlabel=r"Raman shift")
+            simple_plot_spe(spe=spe_croped, label="Neon crop",
+                            xlabel=r"Raman shift")
 
             if use_crop:
                 st.session_state["cache_dicts"]["spectra_x_current"][
@@ -528,7 +554,8 @@ def process_x_calibration_neon_creation():
                     # on_change=update_x_calibration_btn("submitted_std1_btn"),
                 )
 
-                options_strategy = ["topo", "bayesian_gaussian_mixture", "bgm", "cwt"]
+                options_strategy = [
+                    "topo", "bayesian_gaussian_mixture", "bgm", "cwt"]
 
                 # st.write(value_strategy)
                 strategy = st.selectbox(
@@ -706,7 +733,8 @@ def process_x_calibration_si_creation():
                 "si"
             ] = baseline_corr_spe
 
-        simple_plot_spe(spe=baseline_corr_spe, label="Si", xlabel=r"Raman shift")
+        simple_plot_spe(spe=baseline_corr_spe,
+                        label="Si", xlabel=r"Raman shift")
 
     with normalize_tss:
         # st.write('normlaize tab')
@@ -788,7 +816,8 @@ def process_x_calibration_si_creation():
                 on_change=update_x_calibration_btn("submitted_std1_btn"),
             )
 
-            options_strategy = ["topo", "bayesian_gaussian_mixture", "bgm", "cwt"]
+            options_strategy = [
+                "topo", "bayesian_gaussian_mixture", "bgm", "cwt"]
 
             # st.write(value_strategy)
             strategy = st.selectbox(
@@ -907,7 +936,8 @@ with st.sidebar:
 
 if calibration_choice == "Load/Search Calibration":
     with st.sidebar:
-        existing_calibration = st.text_input("Search for existing calibration", "")
+        existing_calibration = st.text_input(
+            "Search for existing calibration", "")
 
         calmodel = load_calibration()
 
@@ -941,7 +971,8 @@ if x_calib_btn == "uploaded_neon_calib_spectra_btn":
     neon_spe = st.session_state["cache_dicts"]["spectra_x"]["neon"]
     st.session_state["cache_dicts"]["spectra_x_current"]["neon"] = neon_spe
 
-    simple_plot_spe(spe=neon_spe, label="Neon", xlabel=r"Raman shift [$\mathrm{nm}$]")
+    simple_plot_spe(spe=neon_spe, label="Neon",
+                    xlabel=r"Raman shift [$\mathrm{nm}$]")
 elif x_calib_btn == "uploaded_x_calibration_btn":
 
     xcalibration_model = st.session_state["cache_dicts"]["x_calibration"][
@@ -959,7 +990,8 @@ elif x_calib_btn == "uploaded_si_calib_spectra_btn":
 
     st.session_state["cache_dicts"]["spectra_x_current"]["si"] = si_spe
 
-    simple_plot_spe(spe=si_spe, label="Si", xlabel=r"Raman shift [$\mathrm{cm}^{-1}$]")
+    simple_plot_spe(spe=si_spe, label="Si",
+                    xlabel=r"Raman shift [$\mathrm{cm}^{-1}$]")
     # fig, ax = plt.subplots()
     # fig.set_size_inches(30, 15)
     # ax.set_xlabel(xlabel)
@@ -1106,7 +1138,7 @@ elif x_calib_btn == "btn_derive_x_calibration":
     # plc_x_calibration.image(
     #     "src/data/images/screenshot_derive_x_calibration01.png"
     # )
-    # plc_x_calibration.write(
+    # plc_x_calibration.write((
     #     'src/data/images/screenshot_derive_x_calibration01.png')
 elif x_calib_btn == "btn_save_x_calibration":
     st.write("SAVE X-Calibraiton")
@@ -1125,9 +1157,15 @@ elif x_calib_btn == "btn_save_x_calibration":
         # './data/calibration_model01.pkl'
         path = str(rpath / "data" / xcalibration_filename)
         calmodel.save(path)
+        # st.download_button(
+        #     "Download Model",
+        #     data=pickle.dumps(clf),
+        #     file_name="model.pkl",
+        # )
         # calmodel.save("./data/" + xcalibration_filename)
 
-        st.write("Saved X-calibration model in ", "./data/" + xcalibration_filename)
+        st.write("Saved X-calibration model in ",
+                 "./data/" + xcalibration_filename)
     # plc_x_calibration.image(
     #     "src/data/images/screenshot_save_x_calibration01.png"
     # )
