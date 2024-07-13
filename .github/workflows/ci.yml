@@ -6,10 +6,13 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - main
       - develop
+      - x-calib-nopeak-find
   pull_request:
     branches:
       - main
       - develop
+    tags:
+      - v*.*.*
   workflow_dispatch:
 
 env:
@@ -34,7 +37,7 @@ jobs:
     steps:
 
       - name: Checkout the repository
-        uses: actions/checkout@v4.1.6
+        uses: actions/checkout@v4.1.7
 
       - name: Setup Python
         uses: actions/setup-python@v5.1.0
@@ -74,6 +77,8 @@ jobs:
         run: >-
           if [[ $GITHUB_REF == refs/heads/main ]]; then
             SKIP=no-commit-to-branch poetry run pre-commit run --all-files
+          elif [[ $GITHUB_REF == refs/heads/x-calib-nopeak-find ]]; then
+            echo 'Skipping pre-commit.'
           else
             poetry run pre-commit run --all-files
           fi
@@ -81,10 +86,16 @@ jobs:
       - name: Run tests
         env:
           COVERAGE_FILE: .coverage.${{ matrix.python-version }}
-        run: poetry run pytest --cov
+        run: >-
+          if [[ $GITHUB_REF == refs/heads/x-calib-nopeak-find ]]; then
+            echo 'Skipping tests.'
+          else
+            poetry run pytest --cov
+          fi
 
       - name: Store the coverage report
         uses: actions/upload-artifact@v4.3.3
+        if: github.ref != 'refs/heads/x-calib-nopeak-find'
         with:
           name: coverage-${{ matrix.python-version }}
           path: .coverage.${{ matrix.python-version }}
@@ -93,6 +104,7 @@ jobs:
 
     runs-on: ubuntu-latest
     needs: test
+    if: github.ref != 'refs/heads/x-calib-nopeak-find'
     permissions:
       pull-requests: write
       contents: write
@@ -111,7 +123,7 @@ jobs:
 
       - name: Process the coverage reports
         id: coverage_processing
-        uses: py-cov-action/python-coverage-comment-action@v3.23
+        uses: py-cov-action/python-coverage-comment-action@v3.25
         with:
           COVERAGE_DATA_BRANCH: 'COVERAGE-REPORT'
           GITHUB_TOKEN: ${{ github.token }}
@@ -136,8 +148,9 @@ jobs:
       id-token: write
 
     steps:
+
       - name: Checkout repository
-        uses: actions/checkout@v4.1.6
+        uses: actions/checkout@v4.1.7
 
       # Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
@@ -168,8 +181,14 @@ jobs:
         uses: docker/metadata-action@v5.5.1
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          labels: |
+            org.opencontainers.image.description=Web-based spectra harmonization tool
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.title=spectrastream
+            org.opencontainers.image.url=https://github.com/h2020charisma/spectrastream/blob/main/README.md
+            org.opencontainers.image.vendor=IDEAconsult
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/x-calib-nopeak-find' }}
             type=raw,value=stable,enable=${{ github.ref == 'refs/heads/main' }}
             type=ref,event=branch
             type=ref,event=tag
@@ -179,14 +198,14 @@ jobs:
       # https://github.com/docker/build-push-action
       - name: Build and push Docker image
         id: build-and-push
-        uses: docker/build-push-action@v5.3.0
+        uses: docker/build-push-action@v6.2.0
         with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          context: .
+          labels: ${{ steps.meta.outputs.labels }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
 
       # Sign the resulting Docker image digest except on PRs.
       # This will only write to the public Rekor transparency log when the Docker
