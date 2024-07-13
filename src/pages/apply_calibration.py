@@ -8,7 +8,14 @@ from front_end.htmlTemplates import css
 
 from modules.navigation_bar import navbar
 
-from modules.util import plot_original_x_calib_spe, process_file_spe, simple_plot_spe
+from modules.util import (
+    apply_calibration_x,
+    load_calibration_file,
+    plot_original_x_calib_spe,
+    process_file_spe,
+    simple_plot_spe,
+    update_session_state,
+)
 
 from ramanchada2.protocols.calibration import CalibrationModel
 
@@ -74,7 +81,7 @@ def main_page():
 # main_page()
 
 with st.sidebar:
-    show_original_spe_btn = st.button("Show original Spe")
+    show_original_spe_btn = st.button("Show Target spectrum")
 
     if show_original_spe_btn:
 
@@ -103,19 +110,57 @@ btn_press = None
 if "btn_press" in st.session_state["cache_dicts"]["page03_apply_calib"]:
     btn_press = st.session_state["cache_dicts"]["page03_apply_calib"]["btn_press"]
 
-target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"]
-
+# target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"]
+target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"]
 if btn_press == "apply_x_calib_btn":
+
+    from matplotlib import pyplot as plt
 
     calmodel = st.session_state["cache_dicts"]["x_calibration"]["xcalibration_model"]
 
-    target_spe_units = target_spe.meta["units"]
-    target_spe_calibrated = calmodel.apply_calibration_x(
-        target_spe, spe_units=target_spe_units
-    )
-    simple_plot_spe(
-        spe=target_spe_calibrated, label="X-Calibrated spe", xlabel=r"Raman shift"
-    )
+    spe_si = st.session_state["cache_dicts"]["spectra_x_current"]["si"]
+
+    spe_sil_ne_calib = st.session_state["cache_dicts"]["x_calibration"][
+        "spe_sil_ne_calib"
+    ]
+
+    target_spe = st.session_state["cache_dicts"]["page01_load_spe"][
+        "target_spe_current"
+    ]
+
+    fig, axes = plt.subplots(3, 1, sharex=False, figsize=(12, 10))
+
+    calmodel.plot(ax=axes[0])
+    axes[0].legend()
+
+    # spe_sil_ne_calib.plot(ax=axes[1], label='processed')
+    spe_si.plot(ax=axes[1], label="Si processed", color="blue")
+    si_units = spe_si.meta["units"]
+
+    si_calibrated = apply_calibration_x(calmodel, spe_si, si_units)
+
+    si_calibrated.plot(ax=axes[1], color="orange", label="Si calibrated")
+    axes[1].legend()
+    axes[1].set_xlabel(r"Raman shift " + si_units)
+    axes[1].set_xlim(520.45 - 50, 520.45 + 50)
+
+    # Target spectrum
+    target_spe.plot(ax=axes[2], label="Target", color="blue")
+
+    target_units = target_spe.meta["units"]
+    target_calibrated = apply_calibration_x(calmodel, target_spe, target_units)
+
+    axes[2].set_xlabel(r"Raman shift " + target_units)
+
+    target_calibrated.plot(ax=axes[2], color="orange", label="Target calibrated")
+
+    st.pyplot(fig)
+
+    # target_spe_units = target_spe.meta["units"]
+    # target_spe_calibrated = calmodel.apply_calibration_x(target_spe,
+    #                                                      spe_units=target_spe_units)
+    # simple_plot_spe(spe=target_spe_calibrated,
+    #                 label="X-Calibrated spe", xlabel=r"Raman shift")
 
 elif btn_press == "show_original_spe_btn":
 

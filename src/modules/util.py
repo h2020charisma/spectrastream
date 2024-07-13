@@ -18,8 +18,9 @@ def simple_plot_spe(spe, label, xlabel):
     # fig = ax.get_figure()
     # st.pyplot(fig)
     # fig, ax = plt.subplots()
-    # ax.set_xlabel(xlabel)
+
     ax = spe.plot(label=label)
+    ax.set_xlabel(xlabel)
     fig = ax.get_figure()
     # fig.set_size_inches(30, 15)
     st.pyplot(fig)
@@ -111,3 +112,13 @@ def update_session_state(cache_dict: dict, session_state):
     for key, item in cache_dict.items():
         assert isinstance(item, dict)
         session_state[key].update(item)
+
+
+def apply_calibration_x(calibration_model, old_spe, spe_units="cm-1"):
+    new_spe = old_spe
+    model_units = spe_units
+    for model in calibration_model.components:
+        if model.enabled:
+            new_spe = model.process(new_spe, model_units, convert_back=False)
+            model_units = model.model_units
+    return new_spe
