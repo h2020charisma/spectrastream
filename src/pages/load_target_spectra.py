@@ -22,7 +22,7 @@ from ramanchada2.protocols.calibration import CalibrationModel
 navbar()
 
 
-st.title("Load target spectra......")
+st.title("Load target spectrum")
 
 # st.set_page_config(
 
@@ -51,7 +51,8 @@ with st.sidebar:
     def set_target_spe_choice_change():
 
         spe_choice = st.session_state["cache_strings"]["target_spe_choice"]
-        assert spe_choice in target_spe_choices, (spe_choice, target_spe_choices)
+        assert spe_choice in target_spe_choices, (
+            spe_choice, target_spe_choices)
         if spe_choice == "Search target spectrum":
             set_spe_choice = "Load target spectrum"
         else:  # spe_choice == 'Load target spectrum':
@@ -82,16 +83,60 @@ with st.sidebar:
 
     if target_spe_choice == "Search target spectrum":
         with st.sidebar:
-            existing_calibration = st.text_input("Search for target spectra in DB", "")
+            existing_calibration = st.text_input(
+                "Search for target spectra in DB", "")
+
     else:
 
-        with st.form("Load target spectra"):
+        # with st.form("Load target spectra"):
 
-            units = st.selectbox(label="Select units", options=["cm-1", "nm"], index=0)
+        #     units = st.selectbox(label="Select units", options=["cm-1", "nm"], index=0)
 
-            uploaded_target_spec = st.file_uploader(
-                "Load spectrum file", accept_multiple_files=False
-            )
+        #     uploaded_target_spec = st.file_uploader(
+        #         "Load spectrum file", accept_multiple_files=False
+        #     )
+
+        #     upload_target_spe_btn = st.form_submit_button("Process spectrum")
+
+        # if upload_target_spe_btn and uploaded_target_spec:
+        #     target_spe = process_file_spe(
+        #         [uploaded_target_spec], label="Target", units=units
+        #     )
+
+        #     st.session_state["cache_dicts"]["page01_load_spe"][
+        #         "target_spe"
+        #     ] = target_spe
+
+        st.session_state["cache_strings"][
+            "btn_load_target_spe"
+        ] = "uploaded_target_spectra_btn"
+
+
+btn_load_target_spe = st.session_state["cache_strings"]["btn_load_target_spe"]
+
+
+if btn_load_target_spe == "uploaded_target_spectra_btn":
+
+    load_tt, show_spec_tt, crop_tt, normalize_tt = st.tabs(
+        ["Load Target",
+            "Show Target",
+            "Crop Target",  # 'Baseline corr',
+            "Normalize Target",
+         ]
+    )
+
+    with load_tt:
+
+        with st.form("Load target"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                uploaded_target_spec = st.file_uploader(
+                    "Load spectrum file", accept_multiple_files=False,
+                )
+            with col2:
+                units = st.selectbox(label="Select units", options=[
+                    "cm-1", "nm"], index=0)
 
             upload_target_spe_btn = st.form_submit_button("Process spectrum")
 
@@ -100,124 +145,104 @@ with st.sidebar:
                 [uploaded_target_spec], label="Target", units=units
             )
 
-            st.session_state["cache_dicts"]["page01_load_spe"][
-                "target_spe"
-            ] = target_spe
+            st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"] = target_spe
 
-            st.session_state["cache_strings"][
-                "btn_load_target_spe"
-            ] = "uploaded_target_spectra_btn"
+            st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"] = target_spe
 
+    with show_spec_tt:
+        if "target_spe_current" in st.session_state["cache_dicts"]["page01_load_spe"]:
+            target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"]
 
-btn_load_target_spe = st.session_state["cache_strings"]["btn_load_target_spe"]
+            target_units = target_spe.meta['units']
 
-
-if btn_load_target_spe == "uploaded_target_spectra_btn":
-    target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"]
-
-    load_tt, crop_tt, normalize_tt = st.tabs(
-        [
-            "Show Target",
-            "Crop Target",  # 'Baseline corr',
-            "Normalize Target",
-        ]
-    )
-
-    with load_tt:
-        target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"]
-
-        # neon_spe = st.session_state["cache_dicts"]["spectra_x"]["neon"]
-        st.session_state["cache_dicts"]["page01_load_spe"][
-            "target_spe_current"
-        ] = target_spe
-
-        simple_plot_spe(spe=target_spe, label="Target", xlabel=r"Raman shift")
+            simple_plot_spe(spe=target_spe, label="Target",
+                            xlabel=r"Raman shift [{}]".format(target_units))
 
     with crop_tt:
+        if "target_spe_current" in st.session_state["cache_dicts"]["page01_load_spe"]:
 
-        spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"]
+            spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"]
 
-        use_crop = st.checkbox(
-            key="crop_target_checkbox",
-            label="Use crop",
-            on_change=uploaded_target_spectra_btn("uploaded_target_spectra_btn"),
-        )
+            use_crop = st.checkbox(
+                key="crop_target_checkbox",
+                label="Use crop",
+                on_change=uploaded_target_spectra_btn(
+                    "uploaded_target_spectra_btn"),
+            )
 
-        # Create a form for the input fields and submit button
-        with st.form(key="target_crop_form"):
-            # Create three columns: two for input fields and one for the submit button
-            col0, col1, col2 = st.columns([0.5, 1, 1])
+            # Create a form for the input fields and submit button
+            with st.form(key="target_crop_form"):
+                # Create three columns: two for input fields and one for the submit button
+                col0, col1, col2 = st.columns([0.5, 1, 1])
 
-            with col0:
-                st.write("")  # This is to adjust the position of the button
-                submit_crop_btn = st.form_submit_button(
-                    label="Update",
-                    #   disabled=not use_crop
-                )
-            with col1:
-                min_val = st.number_input(
-                    "Minimum Value:",
-                    value=min(spe.x),
-                    format="%f",
-                    # disabled=not use_crop
-                )
-            with col2:
-                max_val = st.number_input(
-                    "Maximum Value:",
-                    value=max(spe.x),
-                    format="%f",
-                    # disabled=not use_crop
-                )
+                with col0:
+                    st.write("")  # This is to adjust the position of the button
+                    submit_crop_btn = st.form_submit_button(
+                        label="Update",
+                        #   disabled=not use_crop
+                    )
+                with col1:
+                    min_val = st.number_input(
+                        "Minimum Value:",
+                        value=min(spe.x),
+                        format="%f",
+                        # disabled=not use_crop
+                    )
+                with col2:
+                    max_val = st.number_input(
+                        "Maximum Value:",
+                        value=max(spe.x),
+                        format="%f",
+                        # disabled=not use_crop
+                    )
 
-        # Check if the form is submitted
-        # if True:  # submit_neon_crop_btn:
-        if min_val > max_val:
-            st.error("Minimum value cannot be greater than Maximum value.")
-        # else:
-        uploaded_target_spectra_btn("uploaded_target_spectra_btn")
-        # st.success(f"Range set from {min_val} to {max_val}")
+            # Check if the form is submitted
+            # if True:  # submit_neon_crop_btn:
+            if min_val > max_val:
+                st.error("Minimum value cannot be greater than Maximum value.")
+            # else:
+            uploaded_target_spectra_btn("uploaded_target_spectra_btn")
+            # st.success(f"Range set from {min_val} to {max_val}")
 
-        spe_croped = spe.trim_axes(method="x-axis", boundaries=(min_val, max_val))
+            spe_croped = spe.trim_axes(
+                method="x-axis", boundaries=(min_val, max_val))
 
-        # st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_croped"] = spe_croped
-        # st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"] = spe_croped
+            simple_plot_spe(spe=spe_croped, label="Neon crop",
+                            xlabel=r"Raman shift")
 
-        simple_plot_spe(spe=spe_croped, label="Neon crop", xlabel=r"Raman shift")
-
-        if use_crop:
-            # Save the spectrum
-            st.session_state["cache_dicts"]["page01_load_spe"][
-                "target_spe_current"
-            ] = spe_croped
             st.session_state["cache_dicts"]["page01_load_spe"][
                 "target_spe_croped"
             ] = spe_croped
 
+            if use_crop:
+                # Save the spectrum
+                st.session_state["cache_dicts"]["page01_load_spe"][
+                    "target_spe_current"
+                ] = spe_croped
+
     with normalize_tt:
+        if "target_spe_current" in st.session_state["cache_dicts"]["page01_load_spe"]:
 
-        use_normalize = st.checkbox(
-            key="neon_normalize_checkbox",
-            label="Use normalization",
-            on_change=uploaded_target_spectra_btn("uploaded_target_spectra_btn"),
-        )
+            use_normalize = st.checkbox(
+                key="neon_normalize_checkbox",
+                label="Use normalization",
+                on_change=uploaded_target_spectra_btn(
+                    "uploaded_target_spectra_btn"),
+            )
 
-        # if True:  # use_normalize:
-        # st.write('normlaize tab')
-        spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"]
+            # if True:  # use_normalize:
+            # st.write('normlaize tab')
+            spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"]
 
-        normalized_spe = spe.normalize()
+            normalized_spe = spe.normalize()
 
-        simple_plot_spe(
-            spe=normalized_spe, label="Target normalized", xlabel=r"Raman shift"
-        )
-        if use_normalize:
-            st.session_state["cache_dicts"]["page01_load_spe"][
-                "target_spe_current"
-            ] = normalized_spe
-            st.session_state["cache_dicts"]["page01_load_spe"][
-                "target_spe_normalized"
-            ] = normalized_spe
+            simple_plot_spe(
+                spe=normalized_spe, label="Target normalized", xlabel=r"Raman shift"
+            )
 
-    # ax = target_spe.plot(label="Target spe {}".format(target_spe.meta["units"]))
-    # fig = ax.get_figure()
-    # st.pyplot(fig)
+            st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_normalized"] = \
+                normalized_spe
+
+            if use_normalize:
+                st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"] = \
+                    normalized_spe
