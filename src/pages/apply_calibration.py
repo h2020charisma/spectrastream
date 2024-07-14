@@ -131,7 +131,7 @@ if btn_press == "apply_x_calib_btn":
     fig, axes = plt.subplots(3, 1, sharex=False, figsize=(12, 10))
 
     calmodel.plot(ax=axes[0])
-    axes[0].legend()
+    # axes[0].legend(['Neon peaks', 'referent Neon peaks'])
 
     # spe_sil_ne_calib.plot(ax=axes[1], label='processed')
     spe_si.plot(ax=axes[1], label="Si processed", color="blue")
@@ -152,7 +152,8 @@ if btn_press == "apply_x_calib_btn":
 
     axes[2].set_xlabel(r"Raman shift " + target_units)
 
-    target_calibrated.plot(ax=axes[2], color="orange", label="Target calibrated")
+    target_calibrated.plot(
+        ax=axes[2], color="orange", label="Target calibrated")
 
     st.pyplot(fig)
 
