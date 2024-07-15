@@ -88,25 +88,6 @@ with st.sidebar:
 
     else:
 
-        # with st.form("Load target spectra"):
-
-        #     units = st.selectbox(label="Select units", options=["cm-1", "nm"], index=0)
-
-        #     uploaded_target_spec = st.file_uploader(
-        #         "Load spectrum file", accept_multiple_files=False
-        #     )
-
-        #     upload_target_spe_btn = st.form_submit_button("Process spectrum")
-
-        # if upload_target_spe_btn and uploaded_target_spec:
-        #     target_spe = process_file_spe(
-        #         [uploaded_target_spec], label="Target", units=units
-        #     )
-
-        #     st.session_state["cache_dicts"]["page01_load_spe"][
-        #         "target_spe"
-        #     ] = target_spe
-
         st.session_state["cache_strings"][
             "btn_load_target_spe"
         ] = "uploaded_target_spectra_btn"
@@ -230,8 +211,6 @@ if btn_load_target_spe == "uploaded_target_spectra_btn":
                     "uploaded_target_spectra_btn"),
             )
 
-            # if True:  # use_normalize:
-            # st.write('normlaize tab')
             spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"]
 
             normalized_spe = spe.normalize()

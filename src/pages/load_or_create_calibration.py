@@ -154,18 +154,31 @@ def load_calibration():
 
 def load_calibration_spectrum_neon():
 
-    with st.form("Load Neon spectra"):
+    with st.form("Load Neon spectrum"):
+        col1, col2 = st.columns(2)
 
-        # st.session_state['cache_strings']['x_calibration']
-        # if calibration_choice == "X-calibration":
-        units = st.selectbox(label="Select units", options=[
-                             "cm-1", "nm"], index=0)
-
-        uploaded_neon_spec = st.file_uploader(
-            "Load Neon spectra file", accept_multiple_files=False
-        )
+        with col1:
+            uploaded_neon_spec = st.file_uploader(
+                "Load spectrum file", accept_multiple_files=False,
+            )
+        with col2:
+            units = st.selectbox(label="Select units", options=[
+                "cm-1", "nm"], index=0)
 
         upload_neon_spe_btn = st.form_submit_button("Load spectrum")
+
+    # with st.form("Load Neon spectra"):
+
+    #     # st.session_state['cache_strings']['x_calibration']
+    #     # if calibration_choice == "X-calibration":
+    #     units = st.selectbox(label="Select units", options=[
+    #                          "cm-1", "nm"], index=0)
+
+    #     uploaded_neon_spec = st.file_uploader(
+    #         "Load Neon spectra file", accept_multiple_files=False
+    #     )
+
+    #     upload_neon_spe_btn = st.form_submit_button("Load spectrum")
 
     if upload_neon_spe_btn and uploaded_neon_spec:
         neon_spe = process_file_spe(
@@ -178,18 +191,32 @@ def load_calibration_spectrum_neon():
 
 
 def load_calibration_spectrum_si():
-    with st.form("Load Si spectra"):
 
-        # st.session_state['cache_strings']['x_calibration']
-        # if calibration_choice == "X-calibration":
-        units = st.selectbox(label="Select units", options=[
-                             "cm-1", "nm"], index=0)
+    with st.form("Load Si spectrum"):
+        col1, col2 = st.columns(2)
 
-        uploaded_si_spec = st.file_uploader(
-            "Load Si spectra file", accept_multiple_files=False
-        )
+        with col1:
+            uploaded_si_spec = st.file_uploader(
+                "Load spectrum file", accept_multiple_files=False,
+            )
+        with col2:
+            units = st.selectbox(label="Select units", options=[
+                "cm-1", "nm"], index=0)
 
         upload_si_spe_btn = st.form_submit_button("Load spectrum")
+
+    # with st.form("Load Si spectra"):
+
+    #     # st.session_state['cache_strings']['x_calibration']
+    #     # if calibration_choice == "X-calibration":
+    #     units = st.selectbox(label="Select units", options=[
+    #                          "cm-1", "nm"], index=0)
+
+    #     uploaded_si_spec = st.file_uploader(
+    #         "Load Si spectra file", accept_multiple_files=False
+    #     )
+
+    #     upload_si_spe_btn = st.form_submit_button("Load spectrum")
 
     if upload_si_spe_btn and uploaded_si_spec:
         si_spe = process_file_spe([uploaded_si_spec], label="Si", units=units)
@@ -215,70 +242,44 @@ def create_x_calibration_sidebar_expander():
 
             page_call_STD1_X_Calibration()
 
-            submitted_btn_st1 = st.form_submit_button("Process Neon spectrum")
-            if submitted_btn_st1:
+        submitted_btn_st1 = st.button("Process Neon spectrum")
+        if submitted_btn_st1:
 
-                st.session_state["cache_strings"][
-                    "x_calibration"
-                ] = "submitted_std1_btn"
+            st.session_state["cache_strings"]["x_calibration"] = \
+                "submitted_std1_btn"
 
-                # page_call_STD1_X_Calibration()
+        submitted_btn_derive_x = st.button(
+            "Derive X-Calibration curve")
 
-        with st.form("Derive X-calibration curve"):
-            # st.write("Derive X-calibration")
-            # st.write("X-calibration setup")
+        if submitted_btn_derive_x:
+            st.session_state["cache_strings"]["x_calibration"] = \
+                "btn_derive_x_calibration_curve"
 
-            submitted_btn_derive_x = st.form_submit_button(
-                "Derive X-Calibration curve")
+        submitted_btn_st2 = st.button("Process Si spectrum")
+        if submitted_btn_st2:
 
-            if submitted_btn_derive_x:
-                st.session_state["cache_strings"][
-                    "x_calibration"
-                ] = "btn_derive_x_calibration_curve"
-
-        # load_calibration_spectrum_si()
-
-        with st.form("STD2 Process"):
-            # st.write("Si STD2 setup....")
-
-            submitted_btn_st2 = st.form_submit_button("Process Si spectrum")
-            if submitted_btn_st2:
-
-                st.session_state["cache_strings"][
-                    "x_calibration"
-                ] = "submitted_std2_btn"
-
-        with st.form("Lazer zeroing"):
-            # st.write("Derive X-calibration")
-            # st.write("X-calibration setup")
-
-            submitted_btn_lazer_zeroing = st.form_submit_button("Lazer zeroing")
-
-            if submitted_btn_lazer_zeroing:
-                st.session_state["cache_strings"]["x_calibration"] = "btn_lazer_zeroing"
-
-        plot_xcalibration_model_btn = st.button(
-            label="Plot X-Calibration", key="xcalibraiton_plot_btn"
-        )
-        ###########
-        if plot_xcalibration_model_btn:
             st.session_state["cache_strings"][
                 "x_calibration"
-            ] = "plot_xcalibration_model_btn"
+            ] = "submitted_std2_btn"
+
+        submitted_btn_lazer_zeroing = st.button("Lazer zeroing")
+
+        if submitted_btn_lazer_zeroing:
+            st.session_state["cache_strings"]["x_calibration"] = "btn_lazer_zeroing"
 
         import pickle
 
         calibration_file_name = st.text_input(
             label="Calibration file name",
             placeholder="calibration_file_name.pkl",
-            # value="calibration file name (.pkl)"
+            value="calibration_file_name.pkl"
         )
         if "xcalibration_model" in st.session_state["cache_dicts"]["x_calibration"]:
             calmodel = st.session_state["cache_dicts"]["x_calibration"][
                 "xcalibration_model"
             ]
             st.download_button(
-                "Download Model",
+                "Download X-Calibration",
                 data=pickle.dumps(calmodel),
                 file_name=calibration_file_name,
             )
@@ -1199,15 +1200,6 @@ elif x_calib_btn == "btn_derive_x_calibration_curve":
 
     from ramanchada2.spectrum import Spectrum
 
-    st.write("DERIVE model curve START")
-
-    # spe_units = "cm-1"
-    # ref_units = "cm-1"
-
-    # spe_units = target_spe.meta["units"]
-    # ref_units = ref_neon_spe.meta["units"]
-
-    # calmodel.neon_wl[laser_wl],spe_units="cm-1",ref_units="nm",
     ref_spe = calmodel.neon_wl[int(laser_wl)]
 
     calibration_component_neon: XCalibrationComponent = calmodel.derive_model_curve(
@@ -1227,13 +1219,10 @@ elif x_calib_btn == "btn_derive_x_calibration_curve":
         "xcalibration_component_neon"
     ] = calibration_component_neon
 
-    # ax_n = calibration_component_neon.plot()
-    # fig_n = ax_n.get_figure()
-    # fig_n.set_size_inches(40, 25)
-    # st.pyplot(fig_n)
+    fig, ax = plt.subplots(1, 1, sharex=False, figsize=(12, 10))
 
-    st.write("DERIVE model curve END")
-
+    calmodel.plot(ax=ax)
+    st.pyplot(fig)
 
 elif x_calib_btn == "btn_lazer_zeroing":
 
@@ -1297,99 +1286,14 @@ elif x_calib_btn == "btn_lazer_zeroing":
         "xcalibration_component_si"
     ] = lazer_zeroing_component_si
 
-    fig, axes = plt.subplots(2, 1, sharex=False, figsize=(12, 10))
-
-    # calmodel.plot(ax=axes[0])
-    # axes[0].legend()
-
-    # fig, ax = plt.subplots(1, 1, figsize=(12, 4))
-    # ax = lazer_zeroing_component_si._plot(ax, label='Lazer zeroing')
-    # st.pyplot(fig)
-
-    #    def plot(self, ax=None, label=' ', **kwargs) -> Axes:
-    #     if ax is None:
-    #         fig, ax = plt.subplots(3, 1, figsize=(12, 4))
-    #     self._plot(ax[0], label=label, **kwargs)
-    #     ax.legend()
-    #     return ax
-
-    #     self._plot(ax[0], label=label, **kwargs)
-    #     ax.legend()
-    #     return ax
-
-    # def _plot(self, ax, **kwargs):
-    #     pass
-
-    # TODO WHat to plot
-    # fig, ax = plt.subplots(3, 1, figsize=(12, 4))
-    # lazer_zeroing_component_si._plot(ax[0], label='label',
-    #                                  #   **kwargs
-    #                                  )
-    # ax[0].legend()
-
-    # st.pyplot(fig)
-
     st.session_state["cache_dicts"]["x_calibration"]["xcalibration_model"] = calmodel
 
-    # ax = calmodel.plot()
-    # fig = ax.get_figure()
-    # fig.set_size_inches(40, 25)
-    # st.pyplot(fig)
-
-    st.write("DERIVED MODEL")
-    # calmodel.save('./data/calibration_model01.pkl')
-    # !!! Save the calmodel !!! and use in the Ycalibration
-
-    # target_spe = st.session_state["cache_dicts"]['spectra_x']['target']
-
-    # calmodel = CalibrationModel()
-    # find_kw = {"prominence": spe_neon.y_noise * calmodel.prominence_coeff,
-    #            "wlen": self.kw_findpeak_wlen, "width":  self.kw_findpeak_width}
-    # model_neon = calmodel.derive_model_curve(
-    #         spe_neon, laser_wl,
-    #         spe_units=spe_neon_units, ref_units=ref_neon_units,
-    #         find_kw={},
-    #         fit_peaks_kw={}, should_fit=False, name="Neon calibration")
-    # spe_sil_ne_calib = model_neon.process(spe_sil, spe_units=spe_sil_units, convert_back=False)
-    # find_kw = {"prominence": spe_sil_ne_calib.y_noise * 10, "wlen": 200, "width":  1}
-
-    # model_si = self.derive_model_zero(
-    #         spe_sil_ne_calib, ref={520.45: 1}, spe_units="nm", ref_units=ref_sil_units, find_kw=find_kw,
-    #         fit_peaks_kw={}, should_fit=True, name="Si laser zeroing")
-
-    # return (model_neon, model_si)
-    # calmodel = CalibrationModel()
-    # calmodel.prominence_coeff = self.kw_findpeak_prominence
-    # print("derive_model_curve")
-    # find_kw = {"prominence": spe_neon.y_noise * calmodel.prominence_coeff,
-    #            "wlen": self.kw_findpeak_wlen, "width":  self.kw_findpeak_width}
-
-    # model_neon = calmodel.derive_model_curve(spe_neon,calmodel.neon_wl[laser_wl],spe_units="cm-1",ref_units="nm",find_kw=find_kw,fit_peaks_kw={},should_fit = self.ne_should_fit,name="Neon calibration")
-    # plc_x_calibration.image(
-    #     "src/data/images/screenshot_derive_x_calibration01.png"
-    # )
-    # plc_x_calibration.write((
-    #     'src/data/images/screenshot_derive_x_calibration01.png')
-elif x_calib_btn == "plot_xcalibration_model_btn":
-
-    calmodel = st.session_state["cache_dicts"]["x_calibration"]["xcalibration_model"]
-
     spe_si = st.session_state["cache_dicts"]["spectra_x_current"]["si"]
-
-    spe_sil_ne_calib = st.session_state["cache_dicts"]["x_calibration"][
-        "spe_sil_ne_calib"
-    ]
-
-    target_spe = st.session_state["cache_dicts"]["page01_load_spe"][
-        "target_spe_current"
-    ]
 
     fig, axes = plt.subplots(2, 1, sharex=False, figsize=(12, 10))
 
     calmodel.plot(ax=axes[0])
-    # axes[0].legend(['Neon peaks', 'referent Neon peaks'])
 
-    # spe_sil_ne_calib.plot(ax=axes[1], label='processed')
     spe_si.plot(ax=axes[1], label="Si processed", color="blue")
     si_units = spe_si.meta["units"]
 
@@ -1401,6 +1305,39 @@ elif x_calib_btn == "plot_xcalibration_model_btn":
     axes[1].set_xlim(520.45 - 50, 520.45 + 50)
 
     st.pyplot(fig)
+
+
+# elif x_calib_btn == "plot_xcalibration_model_btn":
+#     pass
+    # calmodel = st.session_state["cache_dicts"]["x_calibration"]["xcalibration_model"]
+
+    # spe_si = st.session_state["cache_dicts"]["spectra_x_current"]["si"]
+
+    # spe_sil_ne_calib = st.session_state["cache_dicts"]["x_calibration"][
+    #     "spe_sil_ne_calib"
+    # ]
+
+    # # target_spe = st.session_state["cache_dicts"]["page01_load_spe"][
+    # #     "target_spe_current"
+    # # ]
+
+    # fig, axes = plt.subplots(2, 1, sharex=False, figsize=(12, 10))
+
+    # calmodel.plot(ax=axes[0])
+    # # axes[0].legend(['Neon peaks', 'referent Neon peaks'])
+
+    # # spe_sil_ne_calib.plot(ax=axes[1], label='processed')
+    # spe_si.plot(ax=axes[1], label="Si processed", color="blue")
+    # si_units = spe_si.meta["units"]
+
+    # si_calibrated = apply_calibration_x(calmodel, spe_si, si_units)
+
+    # si_calibrated.plot(ax=axes[1], color="orange", label="Si calibrated")
+    # axes[1].legend()
+    # axes[1].set_xlabel(r"Raman shift " + si_units)
+    # axes[1].set_xlim(520.45 - 50, 520.45 + 50)
+
+    # st.pyplot(fig)
 
 elif x_calib_btn == "btn_save_x_calibration":
     st.write("SAVE X-Calibraiton")
@@ -1422,18 +1359,6 @@ elif x_calib_btn == "btn_save_x_calibration":
         st.write("Saved X-calibration model in ",
                  "./data/" + xcalibration_filename)
 
-    to_remove = """ !NB!
-#    1.  remove the theoretical button --> it will be the drop down with the reference material
-    before the experimental SRM button (it will use the same material!)
-
-    2. wlen --> this is window length!!! not wave length!!!  CHECK lazer_wl, and other wl how are used!
-
- #   3. Add Crop for Neon too -- and for the one we apply calibration (target spe too)
-
-    4.  Add units for the spectra - to be choosen by the user (bellow Upload spectra)
-
-
-    """
 
 elif x_calib_btn == "btn_save_material_certificate":
 
