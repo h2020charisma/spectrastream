@@ -122,3 +122,8 @@ def apply_calibration_x(calibration_model, old_spe, spe_units="cm-1"):
             new_spe = model.process(new_spe, model_units, convert_back=False)
             model_units = model.model_units
     return new_spe
+
+
+def callback_change_value(key: str, value):
+    if key in st.session_state:
+        st.session_state[key] = value

@@ -44,57 +44,57 @@ def uploaded_target_spectra_btn(value):
 
 with st.sidebar:
 
-    # st.sidebar.image("./src/front_end/images/logo_charisma.jpg")
-    # st.header("AI data extractor")
-    target_spe_choices = ["Search target spectrum", "Load target spectrum"]
+    #     # st.sidebar.image("./src/front_end/images/logo_charisma.jpg")
+    #     # st.header("AI data extractor")
+    #     target_spe_choices = ["Search target spectrum", "Load target spectrum"]
 
-    def set_target_spe_choice_change():
+    #     def set_target_spe_choice_change():
 
-        spe_choice = st.session_state["cache_strings"]["target_spe_choice"]
-        assert spe_choice in target_spe_choices, (
-            spe_choice, target_spe_choices)
-        if spe_choice == "Search target spectrum":
-            set_spe_choice = "Load target spectrum"
-        else:  # spe_choice == 'Load target spectrum':
-            set_spe_choice = "Search target spectrum"
+    #         spe_choice = st.session_state["cache_strings"]["target_spe_choice"]
+    #         assert spe_choice in target_spe_choices, (
+    #             spe_choice, target_spe_choices)
+    #         if spe_choice == "Search target spectrum":
+    #             set_spe_choice = "Load target spectrum"
+    #         else:  # spe_choice == 'Load target spectrum':
+    #             set_spe_choice = "Search target spectrum"
 
-        st.session_state["cache_strings"]["target_spe_choice"] = set_spe_choice
+    #         st.session_state["cache_strings"]["target_spe_choice"] = set_spe_choice
 
-    if "target_spe_choice" not in st.session_state["cache_strings"]:
-        st.session_state["cache_strings"][
-            "target_spe_choice"
-        ] = "Search target spectrum"
+    #     if "target_spe_choice" not in st.session_state["cache_strings"]:
+    #         st.session_state["cache_strings"][
+    #             "target_spe_choice"
+    #         ] = "Search target spectrum"
 
-    target_spe_choice_ = st.session_state["cache_strings"]["target_spe_choice"]
+    #     target_spe_choice_ = st.session_state["cache_strings"]["target_spe_choice"]
 
-    assert target_spe_choice_ in target_spe_choices, (
-        target_spe_choice_,
-        target_spe_choices,
-    )
+    #     assert target_spe_choice_ in target_spe_choices, (
+    #         target_spe_choice_,
+    #         target_spe_choices,
+    #     )
 
-    target_spe_choice = st.radio(
-        "Choose target spectrum option",
-        target_spe_choices,
-        index=target_spe_choices.index(target_spe_choice_),
-        on_change=set_target_spe_choice_change(),
-    )
+    #     target_spe_choice = st.radio(
+    #         "Choose target spectrum option",
+    #         target_spe_choices,
+    #         index=target_spe_choices.index(target_spe_choice_),
+    #         on_change=set_target_spe_choice_change(),
+    #     )
 
-    st.session_state["cache_strings"]["target_spe_choice"] = target_spe_choice
+    #     st.session_state["cache_strings"]["target_spe_choice"] = target_spe_choice
 
-    if target_spe_choice == "Search target spectrum":
-        with st.sidebar:
-            existing_calibration = st.text_input(
-                "Search for target spectra in DB", "")
+    #     if target_spe_choice == "Search target spectrum":
+    #         with st.sidebar:
+    #             existing_calibration = st.text_input(
+    #                 "Search for target spectra in DB", "")
 
-    else:
+    #     else:
 
-        st.session_state["cache_strings"][
-            "btn_load_target_spe"
-        ] = "uploaded_target_spectra_btn"
+    #         st.session_state["cache_strings"][
+    #             "btn_load_target_spe"
+    #         ] = "uploaded_target_spectra_btn"
 
+    # btn_load_target_spe = st.session_state["cache_strings"]["btn_load_target_spe"]
 
-btn_load_target_spe = st.session_state["cache_strings"]["btn_load_target_spe"]
-
+btn_load_target_spe = "uploaded_target_spectra_btn"
 
 if btn_load_target_spe == "uploaded_target_spectra_btn":
 

@@ -5,6 +5,8 @@ import pandas as pd
 
 import streamlit as st
 from front_end.htmlTemplates import css
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 
 from modules.navigation_bar import navbar
 
@@ -63,25 +65,33 @@ with st.sidebar:
         target_spe_choices,
     )
 
-    target_spe_choice = st.radio(
-        "Choose target spectrum option",
-        target_spe_choices,
-        index=target_spe_choices.index(target_spe_choice_),
-        on_change=set_target_spe_choice_change(),
-    )
+    instruments_mandatory = st.session_state["cache_dicts"]["instrument_settings"][
+        "settings_mandatory"]
+    st.write(instruments_mandatory)
 
-    st.session_state["cache_strings"]["target_spe_choice"] = target_spe_choice
+    # target_spe_choice = st.radio(
+    #     "Choose target spectrum option",
+    #     target_spe_choices,
+    #     index=target_spe_choices.index(target_spe_choice_),
+    #     on_change=set_target_spe_choice_change(),
+    # )
 
-    if target_spe_choice == "Search target spectrum":
-        with st.sidebar:
-            existing_calibration = st.text_input(
-                "Search for target spectra in DB", "")
+    # st.session_state["cache_strings"]["target_spe_choice"] = target_spe_choice
 
-    else:
+    # if target_spe_choice == "Search target spectrum":
+    #     with st.sidebar:
+    #         existing_calibration = st.text_input(
+    #             "Search for target spectra in DB", "")
 
-        st.session_state["cache_strings"][
-            "btn_load_target_spe"
-        ] = "uploaded_target_spectra_btn"
+    # else:
+
+    #     st.session_state["cache_strings"][
+    #         "btn_load_target_spe"
+    #     ] = "uploaded_target_spectra_btn"
+
+st.session_state["cache_strings"][
+    "btn_load_target_spe"
+] = "uploaded_target_spectra_btn"
 
 
 def load_tabs_target_spectrum():
@@ -263,6 +273,11 @@ if btn_press == "apply_x_calib_btn":
     fig, axes = plt.subplots(3, 1, sharex=False, figsize=(12, 10))
 
     calmodel.plot(ax=axes[0])
+
+    red_patch = mpatches.Patch(color='blue', label='Neon peaks')
+    blue_patch = mpatches.Patch(color='red', label='Neon reference')
+
+    axes[0].legend(handles=[red_patch, blue_patch])
 
     spe_si.plot(ax=axes[1], label="Si processed", color="blue")
     si_units = spe_si.meta["units"]

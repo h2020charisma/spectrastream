@@ -2184,6 +2184,25 @@ watchdog = {version = ">=2.1.5", markers = "platform_system != \"Darwin\""}
 snowflake = ["snowflake-connector-python (>=2.8.0)", "snowflake-snowpark-python (>=0.9.0)"]
 
 [[package]]
+name = "streamlit-pydantic"
+version = "0.6.0"
+description = "Auto-generate Streamlit UI from Pydantic Models & Dataclasses."
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "streamlit-pydantic-0.6.0.tar.gz", hash = "sha256:3bc5d51af085eb6791b360f569f1a541681ddcc51579b09a1e2ab54639b39d49"},
+    {file = "streamlit_pydantic-0.6.0-py3-none-any.whl", hash = "sha256:7a69ec6519f5de1b21bd9737891c61d8fea33d7727824ab19c4c65d49f136304"},
+]
+
+[package.dependencies]
+importlib-resources = "*"
+pydantic = ">=1.9"
+streamlit = ">=1.14.0"
+
+[package.extras]
+dev = ["black", "build", "colorama", "flake8", "isort", "lazydocs", "mypy", "pydocstyle", "pytest", "pytest-cov", "pytest-mock", "rope", "setuptools", "twine", "types-dataclasses", "universal-build", "wheel"]
+
+[[package]]
 name = "tabulate"
 version = "0.9.0"
 description = "Pretty-print tabular data"
@@ -2414,4 +2433,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,!=3.9.7,<3.13"
-content-hash = "dacd7d2a610bdec3e84c1b38cf9e2a00a27a0fc2ff17b780f5d77ea1ea927304"
+content-hash = "cbbe75b4bc2501da121c8567e3f8927839bc7c80fda558fb5256ede5be9503cb"
