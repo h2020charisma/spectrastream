@@ -193,8 +193,8 @@ def load_calibration_spectrum_neon():
         # meta_dct = target_spe.meta
         st.session_state["cache_dicts"]["spectra_x"]["neon"] = neon_spe
 
-        st.session_state["cache_strings"]["x_calibration"] = \
-            "uploaded_neon_calib_spectra_btn"
+        # st.session_state["cache_strings"]["x_calibration"] = \
+        #     "uploaded_neon_calib_spectra_btn"
 
 
 def load_calibration_spectrum_si():
@@ -217,9 +217,9 @@ def load_calibration_spectrum_si():
         # meta_dct = target_spe.meta
         st.session_state["cache_dicts"]["spectra_x"]["si"] = si_spe
 
-        st.session_state["cache_strings"][
-            "x_calibration"
-        ] = "uploaded_si_calib_spectra_btn"
+        # st.session_state["cache_strings"][
+        #     "x_calibration"
+        # ] = "uploaded_si_calib_spectra_btn"
 
 
 def page_call_STD1_X_Calibration():
@@ -377,9 +377,9 @@ def process_x_calibration_neon_creation():
         ]
     )
 
-    if "neon" in st.session_state["cache_dicts"]["spectrum_settings"]:
-        state_settings = st.session_state["cache_dicts"]["spectrum_settings"]["neon"]
-    else:
+    if "neon" not in st.session_state["cache_dicts"]["spectrum_settings"]:
+        #     state_settings = st.session_state["cache_dicts"]["spectrum_settings"]["neon"]
+        # else:
         st.session_state["cache_dicts"]["spectrum_settings"]["neon"] = default_state_neon
 
     state_settings = st.session_state["cache_dicts"]["spectrum_settings"]["neon"]
@@ -389,6 +389,7 @@ def process_x_calibration_neon_creation():
     print('------ END ------')
 
     with load_tn:
+
         load_calibration_spectrum_neon()
 
         if "neon" in st.session_state["cache_dicts"]["spectra_x"]:
@@ -1101,6 +1102,7 @@ def __process_x_calibration_si_creation():
                     #     else min(spe.x)
                     # print('Min val: ', min_val)
                     baseline_current = settings_baseline.baseline_corr_type
+
                     if set_default_btn:
                         callback_change_value(
                             'select_baseline_si', baseline_current)
@@ -1127,6 +1129,12 @@ def __process_x_calibration_si_creation():
 
                     st.write("")
                     with st.expander(label="Baseline correction settings"):
+                        if set_default_btn:
+                            keys = [k for k in st.session_state.keys(
+                            ) if 'Baseline correction settings']
+                            for key in keys:
+                                del st.session_state[key]
+
                         input_data = sp.pydantic_input(
                             "Baseline correction settings", baseline_corr_class)
 
@@ -1136,6 +1144,12 @@ def __process_x_calibration_si_creation():
                         args = baseline_corr_class(**input_data)
                         # st.write(args)
                         # st.write(type(input_data))
+
+                print('sessions state...')
+                print(st.session_state.keys())
+                print('----------------------')
+                print(st.session_state)
+                print('=======================')
 
                 if submit_si_baseline_btn or use_baseline:
                     if baseline_corr == 'SNIP':
@@ -2053,15 +2067,15 @@ if x_calib_btn == "uploaded_x_calibration_btn":
     # fig.set_size_inches(40, 25)
     # st.pyplot(fig)
 
-elif x_calib_btn == "uploaded_si_calib_spectra_btn":
-    # st.write("Show the Si spe...")
-    si_spe = st.session_state["cache_dicts"]["spectra_x"]["si"]
+# elif x_calib_btn == "uploaded_si_calib_spectra_btn":
+#     # st.write("Show the Si spe...")
+#     si_spe = st.session_state["cache_dicts"]["spectra_x"]["si"]
 
-    st.session_state["cache_dicts"]["spectra_x_current"]["si"] = si_spe
-    spe_units = si_spe.meta["units"]
-    simple_plot_spe(
-        spe=si_spe, label="Si", xlabel=r"Raman shift [{}]".format(spe_units)
-    )
+#     st.session_state["cache_dicts"]["spectra_x_current"]["si"] = si_spe
+#     spe_units = si_spe.meta["units"]
+#     simple_plot_spe(
+#         spe=si_spe, label="Si", xlabel=r"Raman shift [{}]".format(spe_units)
+#     )
 
 elif x_calib_btn == "submitted_std1_btn":
     # st.write(' in elif x_calib_btn std1')
