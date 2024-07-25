@@ -65,9 +65,17 @@ with st.sidebar:
         target_spe_choices,
     )
 
-    instruments_mandatory = st.session_state["cache_dicts"]["instrument_settings"][
-        "settings_mandatory"]
-    st.write(instruments_mandatory)
+    if "settings" not in st.session_state["cache_dicts"]["instrument_settings"]:
+        st.error("Set Instrument settings first")
+
+    instrument_settings = st.session_state["cache_dicts"]["instrument_settings"][
+        "settings"]
+    st.write('-----  Instrument settings -----')
+    for key, value in instrument_settings.items():
+        if key in ['make_and_model_of_the_instrument', 'serial_number_of_the_instrument', 'laser_wavelength']:
+            st.sidebar.write(f"{key}: {value}")
+        # st.write(instrument_settings)
+    st.write('------------------------')
 
     # target_spe_choice = st.radio(
     #     "Choose target spectrum option",

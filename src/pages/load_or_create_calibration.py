@@ -86,30 +86,28 @@ navbar()
 # ]
 
 
-# def instrument_settings_expander():
-#     # st.write(type(st.session_state))
-#     print("This is session state type...")
-#     print(type(st.session_state))
-#     with st.expander("Instrument settings", expanded=False):
+def material_settings_expander():
 
-#         if "instrument_settings" not in st.session_state["cache_dicts"]:
-#             certificates = CertificatesDict()
-#             config_certs = certificates.config_certs
-#             # st.write(config_certs)
-#             st.session_state["cache_dicts"]["instrument_settings"][
-#                 "config_certs"
-#             ] = config_certs
+    # with st.expander("Material settings", expanded=False):
 
-#         config_certs = st.session_state["cache_dicts"]["instrument_settings"][
-#             "config_certs"
-#         ]
-#         instrument_wl = st.selectbox(
-#             label="Choose wave length", options=list(config_certs.keys()), index=0
-#         )
+    if "config_certs" not in st.session_state["cache_dicts"]["material_settings"]:
+        certificates = CertificatesDict()
+        config_certs = certificates.config_certs
+        # st.write(config_certs)
+        st.session_state["cache_dicts"]["material_settings"][
+            "config_certs"
+        ] = config_certs
 
-#         st.session_state["cache_dicts"]["instrument_settings"][
-#             "instrument_wl"
-#         ] = instrument_wl
+    config_certs = st.session_state["cache_dicts"]["material_settings"][
+        "config_certs"
+    ]
+    instrument_wl = st.selectbox(
+        label="Choose wave length", options=list(config_certs.keys()), index=0
+    )
+
+    st.session_state["cache_dicts"]["material_settings"][
+        "instrument_wl"
+    ] = instrument_wl
 
 # certs = certificates.get_certificates(wavelength=532)
 # st.write(certificates.config_certs.keys())
@@ -302,14 +300,24 @@ def create_x_calibration_sidebar_expander():
 def create_y_calibration_sidebar_expander():
     with st.expander("Create Y-Calibration", expanded=False):
 
-        config_certs = st.session_state["cache_dicts"]["instrument_settings"][
+        material_settings_expander()
+
+        if "config_certs" not in st.session_state["cache_dicts"]["material_settings"]:
+            certificates = CertificatesDict()
+            config_certs = certificates.config_certs
+
+            st.session_state["cache_dicts"]["material_settings"][
+                "config_certs"
+            ] = config_certs
+
+        config_certs = st.session_state["cache_dicts"]["material_settings"][
             "config_certs"
         ]
 
         settings = st.session_state["cache_dicts"]["instrument_settings"][
-            "settings_mandatory"
+            "settings"
         ]
-        instrument_wl = settings.laser_wavelength
+        instrument_wl = settings['laser_wavelength']
 
         certs_dict = config_certs[str(instrument_wl)]
         certificate_id = st.selectbox(
@@ -734,7 +742,7 @@ def process_x_calibration_neon_creation():
                         # on_change=update_x_calibration_btn("submitted_std1_btn"),
                     )
                 with col3:
-
+                    # NB: HHT CHain and SHARPENING --> To remove!!!
                     prominence = st.number_input(
                         key='prominence_neon',
                         label="prominence",
@@ -762,7 +770,7 @@ def process_x_calibration_neon_creation():
                 "wlen": wlen,
                 "width": width,
                 "hht_chain": [hht_chain],
-                "prominence": prominence * neon_spe.y_noise,
+                "prominence": prominence * neon_spe.y_noise,  # .y_noise_MAD
                 "sharpening": sharpening,
                 "strategy": strategy,
             }
@@ -805,7 +813,7 @@ def process_x_calibration_neon_creation():
 
             use_peakfit = st.checkbox(
                 key="neon_peak_fit_checkbox",
-                label="Use Peak find",
+                label="Use Peak fit",
                 on_change=update_x_calibration_btn("submitted_std1_btn"),
             )
 
@@ -908,7 +916,7 @@ def __process_x_calibration_si_creation():
             st.session_state["cache_dicts"]["spectra_x_current"]["si"] = si_spe
 
             simple_plot_spe(
-                spe=si_spe, label="Neon", xlabel=r"Raman shift [{}]".format(spe_units)
+                spe=si_spe, label="Si", xlabel=r"Raman shift [{}]".format(spe_units)
             )
 
     with crop_ts:
@@ -1138,12 +1146,9 @@ def __process_x_calibration_si_creation():
                         input_data = sp.pydantic_input(
                             "Baseline correction settings", baseline_corr_class)
 
-                        # input_data = input_data.dict()
                         niter = input_data['niter']
-                        # st.write(niter)
+
                         args = baseline_corr_class(**input_data)
-                        # st.write(args)
-                        # st.write(type(input_data))
 
                 print('sessions state...')
                 print(st.session_state.keys())
@@ -1519,12 +1524,14 @@ def __process_x_calibration_si_creation():
             state_settings.peak_find = settings_peak_find
 
     ################
+            # NB!  NB to enable fit visualization!
+            # NB (Use .... to have hint everywhere!!!)
     with peakfit_ts:
         if "si" in st.session_state["cache_dicts"]["spectra_x_current"]:
 
             use_peakfit = st.checkbox(
                 key="si_peak_fit_checkbox",
-                label="Use Peak find",
+                label="Use Peak fit",
                 on_change=update_x_calibration_btn("submitted_std2_btn"),
             )
 
@@ -1978,9 +1985,6 @@ def update_x_calibration_btn(value):
     return update_x_calibraiton_val
 
 
-instruments_mandatory = st.session_state["cache_dicts"]["instrument_settings"][
-    "settings_mandatory"]
-
 with st.sidebar:
 
     # st.sidebar.image("./src/front_end/images/logo_charisma.jpg")
@@ -1995,7 +1999,17 @@ with st.sidebar:
         calibration_choices,
     )
 
-    st.write(instruments_mandatory)
+    if "settings" not in st.session_state["cache_dicts"]["instrument_settings"]:
+        st.error("Set Instrument settings first")
+
+    instrument_settings = st.session_state["cache_dicts"]["instrument_settings"][
+        "settings"]
+    st.write('-----  Instrument settings -----')
+    for key, value in instrument_settings.items():
+        if key in ['make_and_model_of_the_instrument', 'serial_number_of_the_instrument', 'laser_wavelength']:
+            st.sidebar.write(f"{key}: {value}")
+        # st.write(instrument_settings)
+    st.write('------------------------')
 
     calibration_choice = st.radio(
         "Choose calibration option",
@@ -2091,11 +2105,9 @@ elif x_calib_btn == "btn_derive_x_calibration_curve":
     neon_spe = st.session_state["cache_dicts"]["spectra_x_current"]["neon"]
 
     settings = st.session_state["cache_dicts"]["instrument_settings"][
-        "settings_mandatory"
+        "settings"
     ]
-    laser_wl = settings.laser_wavelength
-
-    # laser_wl = st.session_state["cache_dicts"]["instrument_settings"]["instrument_wl"]
+    laser_wl = settings['laser_wavelength']
 
     calmodel = CalibrationModel(laser_wl)
 

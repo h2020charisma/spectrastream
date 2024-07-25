@@ -58,6 +58,9 @@ def process_file_spe(uploaded_files: list[UploadedFile], label=None, units="nm")
                 f.name,
                 filetype=extension,
             )
+            spe = spe.trim_axes(
+                method="x-axis", boundaries=(100.0, max(spe.y)))
+
             meta_dct = spe.meta.dict()["__root__"]
             meta_dct["xlabel"] = "Raman shift [cm¯¹]"
             meta_dct["Original file"] = uploaded_file.name

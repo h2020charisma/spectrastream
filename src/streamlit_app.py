@@ -26,7 +26,7 @@ from ramanchada2.protocols.calibration import CalibrationModel
 # from pathlib import Path
 # rpath = Path(__file__).parent.resolve()
 
-st.title("This is the Fron Page title")
+st.title("This is the Front Page title")
 
 navbar()
 
@@ -36,6 +36,17 @@ st.write("This is FRONT PAGE")
 
 
 init_streamlit_cache()
+
+str_write = """
+**Acknowledgements** \n
+This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement 952921 CHARISMA
+
+Support info 
+Ideaconsult Ltd.
+www.ideaconsult.net
+email: support@ideaconsult.net"""
+
+st.write(str_write)
 
 
 def main():
