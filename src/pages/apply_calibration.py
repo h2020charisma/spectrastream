@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 from collections import defaultdict
 
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+
 import pandas as pd
 
 import streamlit as st
 from front_end.htmlTemplates import css
-import matplotlib.patches as mpatches
-import matplotlib.pyplot as plt
 
 from modules.navigation_bar import navbar
 
@@ -44,8 +45,7 @@ with st.sidebar:
     def set_target_spe_choice_change():
 
         spe_choice = st.session_state["cache_strings"]["target_spe_choice"]
-        assert spe_choice in target_spe_choices, (
-            spe_choice, target_spe_choices)
+        assert spe_choice in target_spe_choices, (spe_choice, target_spe_choices)
         if spe_choice == "Search target spectrum":
             set_spe_choice = "Load target spectrum"
         else:  # spe_choice == 'Load target spectrum':
@@ -69,13 +69,18 @@ with st.sidebar:
         st.error("Set Instrument settings first")
 
     instrument_settings = st.session_state["cache_dicts"]["instrument_settings"][
-        "settings"]
-    st.write('-----  Instrument settings -----')
+        "settings"
+    ]
+    # st.write('-----  Instrument settings -----')
     for key, value in instrument_settings.items():
-        if key in ['make_and_model_of_the_instrument', 'serial_number_of_the_instrument', 'laser_wavelength']:
+        if key in [
+            "make_and_model_of_the_instrument",
+            "serial_number_of_the_instrument",
+            "laser_wavelength",
+        ]:
             st.sidebar.write(f"{key}: {value}")
         # st.write(instrument_settings)
-    st.write('------------------------')
+    # st.write('------------------------')
 
     # target_spe_choice = st.radio(
     #     "Choose target spectrum option",
@@ -97,19 +102,18 @@ with st.sidebar:
     #         "btn_load_target_spe"
     #     ] = "uploaded_target_spectra_btn"
 
-st.session_state["cache_strings"][
-    "btn_load_target_spe"
-] = "uploaded_target_spectra_btn"
+st.session_state["cache_strings"]["btn_load_target_spe"] = "uploaded_target_spectra_btn"
 
 
 def load_tabs_target_spectrum():
 
     load_tt, show_spec_tt, crop_tt, normalize_tt = st.tabs(
-        ["Load Target",
+        [
+            "Load Target",
             "Show Target",
             "Crop Target",  # 'Baseline corr',
             "Normalize Target",
-         ]
+        ]
     )
 
     with load_tt:
@@ -119,11 +123,13 @@ def load_tabs_target_spectrum():
 
             with col1:
                 uploaded_target_spec = st.file_uploader(
-                    "Load spectrum file", accept_multiple_files=False,
+                    "Load spectrum file",
+                    accept_multiple_files=False,
                 )
             with col2:
-                units = st.selectbox(label="Select units", options=[
-                    "cm-1", "nm"], index=0)
+                units = st.selectbox(
+                    label="Select units", options=["cm-1", "nm"], index=0
+                )
 
             upload_target_spe_btn = st.form_submit_button("Process spectrum")
 
@@ -132,29 +138,39 @@ def load_tabs_target_spectrum():
                 [uploaded_target_spec], label="Target", units=units
             )
 
-            st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"] = target_spe
+            st.session_state["cache_dicts"]["page01_load_spe"][
+                "target_spe"
+            ] = target_spe
 
-            st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"] = target_spe
+            st.session_state["cache_dicts"]["page01_load_spe"][
+                "target_spe_current"
+            ] = target_spe
 
     with show_spec_tt:
         if "target_spe_current" in st.session_state["cache_dicts"]["page01_load_spe"]:
-            target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"]
+            target_spe = st.session_state["cache_dicts"]["page01_load_spe"][
+                "target_spe_current"
+            ]
 
-            target_units = target_spe.meta['units']
+            target_units = target_spe.meta["units"]
 
-            simple_plot_spe(spe=target_spe, label="Target",
-                            xlabel=r"Raman shift [{}]".format(target_units))
+            simple_plot_spe(
+                spe=target_spe,
+                label="Target",
+                xlabel=r"Raman shift [{}]".format(target_units),
+            )
 
     with crop_tt:
         if "target_spe_current" in st.session_state["cache_dicts"]["page01_load_spe"]:
 
-            spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"]
+            spe = st.session_state["cache_dicts"]["page01_load_spe"][
+                "target_spe_current"
+            ]
 
             use_crop = st.checkbox(
                 key="crop_target_checkbox",
                 label="Use crop",
-                on_change=uploaded_target_spectra_btn(
-                    "uploaded_target_spectra_btn"),
+                on_change=uploaded_target_spectra_btn("uploaded_target_spectra_btn"),
             )
 
             # Create a form for the input fields and submit button
@@ -191,11 +207,9 @@ def load_tabs_target_spectrum():
             uploaded_target_spectra_btn("uploaded_target_spectra_btn")
             # st.success(f"Range set from {min_val} to {max_val}")
 
-            spe_croped = spe.trim_axes(
-                method="x-axis", boundaries=(min_val, max_val))
+            spe_croped = spe.trim_axes(method="x-axis", boundaries=(min_val, max_val))
 
-            simple_plot_spe(spe=spe_croped, label="Neon crop",
-                            xlabel=r"Raman shift")
+            simple_plot_spe(spe=spe_croped, label="Neon crop", xlabel=r"Raman shift")
 
             st.session_state["cache_dicts"]["page01_load_spe"][
                 "target_spe_croped"
@@ -213,11 +227,12 @@ def load_tabs_target_spectrum():
             use_normalize = st.checkbox(
                 key="neon_normalize_checkbox",
                 label="Use normalization",
-                on_change=uploaded_target_spectra_btn(
-                    "uploaded_target_spectra_btn"),
+                on_change=uploaded_target_spectra_btn("uploaded_target_spectra_btn"),
             )
 
-            spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"]
+            spe = st.session_state["cache_dicts"]["page01_load_spe"][
+                "target_spe_current"
+            ]
 
             normalized_spe = spe.normalize()
 
@@ -225,12 +240,14 @@ def load_tabs_target_spectrum():
                 spe=normalized_spe, label="Target normalized", xlabel=r"Raman shift"
             )
 
-            st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_normalized"] = \
-                normalized_spe
+            st.session_state["cache_dicts"]["page01_load_spe"][
+                "target_spe_normalized"
+            ] = normalized_spe
 
             if use_normalize:
-                st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"] = \
-                    normalized_spe
+                st.session_state["cache_dicts"]["page01_load_spe"][
+                    "target_spe_current"
+                ] = normalized_spe
 
 
 with st.sidebar:
@@ -239,14 +256,18 @@ with st.sidebar:
 
     if target_spe_btn:
 
-        st.session_state["cache_dicts"]["page03_apply_calib"]["btn_press"] = \
-            "target_spe_btn"
+        st.session_state["cache_dicts"]["page03_apply_calib"][
+            "btn_press"
+        ] = "target_spe_btn"
 
     apply_x_calib_btn = st.button("Apply X-Calibration")
 
     if apply_x_calib_btn:
-        if 'target_spe_current' not in st.session_state["cache_dicts"]["page01_load_spe"]:
-            st.error('Target spectrum not loaded')
+        if (
+            "target_spe_current"
+            not in st.session_state["cache_dicts"]["page01_load_spe"]
+        ):
+            st.error("Target spectrum not loaded")
 
         assert "xcalibration_model" in st.session_state["cache_dicts"]["x_calibration"]
         st.session_state["cache_dicts"]["page03_apply_calib"][
@@ -264,7 +285,9 @@ if btn_press == "apply_x_calib_btn":
 
     from matplotlib import pyplot as plt
 
-    target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"]
+    target_spe = st.session_state["cache_dicts"]["page01_load_spe"][
+        "target_spe_current"
+    ]
 
     calmodel = st.session_state["cache_dicts"]["x_calibration"]["xcalibration_model"]
 
@@ -282,8 +305,8 @@ if btn_press == "apply_x_calib_btn":
 
     calmodel.plot(ax=axes[0])
 
-    red_patch = mpatches.Patch(color='blue', label='Neon peaks')
-    blue_patch = mpatches.Patch(color='red', label='Neon reference')
+    red_patch = mpatches.Patch(color="blue", label="Neon peaks")
+    blue_patch = mpatches.Patch(color="red", label="Neon reference")
 
     axes[0].legend(handles=[red_patch, blue_patch])
 
@@ -305,8 +328,7 @@ if btn_press == "apply_x_calib_btn":
 
     axes[2].set_xlabel(r"Raman shift " + target_units)
 
-    target_calibrated.plot(
-        ax=axes[2], color="orange", label="Target calibrated")
+    target_calibrated.plot(ax=axes[2], color="orange", label="Target calibrated")
 
     st.pyplot(fig)
 
