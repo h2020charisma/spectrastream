@@ -54,15 +54,15 @@ class StatePeakFind(BaseModel):
     value_prominence: float = 5.0  # neon_spe.y_noise
     value_wlen: int = 200
     value_width: int = 2
-    value_hht_chain: int = 80
-    value_sharpening: str | None = None  # None | hht
+    # value_hht_chain: int = 80
+    # value_sharpening: str | None = Neone  # None | hhte
     value_strategy: str | None = None  # only string
 
 
 class StateSpectrum(BaseModel):
     crop: StateCrop
     normalize: StateNormalize
-    peak_find: StatePeakFind
+    peak_find: StatePeakFind | None = None
     baseline_corr: StateBaselineCorrection | None = None
 
 
@@ -82,3 +82,6 @@ default_state_si = StateSpectrum(crop=StateCrop(crop_min=520.45-50, crop_max=520
                                  baseline_corr=StateBaselineCorrection(
                                      baseline_corr_type='SNIP', kwargs={'niter': 30}),
                                  peak_find=default_peak_find_si)
+
+default_state_target = StateSpectrum(crop=StateCrop(),
+                                     normalize=StateNormalize())
