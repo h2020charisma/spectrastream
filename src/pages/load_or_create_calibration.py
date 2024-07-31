@@ -545,7 +545,7 @@ def process_x_calibration_neon_creation():
             label, xlabel = "Neon", r"Raman shift [{}]".format(spe_units)
             ax = neon_spe.plot(label=label, linestyle="dashed")
             ax.set_xlabel(xlabel)
-            ax.set_ylabel("Neon", color="blue")
+            # ax.set_ylabel("Neon", color="blue")
 
             state_settings = st.session_state["cache_dicts"]["spectrum_settings"][
                 "neon"
@@ -617,7 +617,7 @@ def process_x_calibration_neon_creation():
                     color="red",
                     # linestyle='dashed'
                 )
-                ax2.set_ylabel("Neon normalized", color="red")
+                # ax2.set_ylabel("Neon normalized", color="red")
 
                 red_patch = mpatches.Patch(color="blue", label="Neon")
 
@@ -1121,7 +1121,7 @@ def __process_x_calibration_si_creation():
             label, xlabel = "Si", r"Raman shift [{}]".format(spe_units)
             ax = si_spe.plot(label=label, linestyle="dashed")
             ax.set_xlabel(xlabel)
-            ax.set_ylabel("Si", color="blue")
+            # ax.set_ylabel("Si", color="blue")
 
             si_spe_current = st.session_state["cache_dicts"]["spectra_x_last"]["si"]
 
