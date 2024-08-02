@@ -230,7 +230,7 @@ def load_calibration_spectrum_srm_ref():
     with col1:
         uploaded_srm_spec = st.file_uploader(
             key='upload_srm_ref',
-            label="Load SRM ref spectrum",
+            label="Load Reference spectrum",
             accept_multiple_files=False,
         )
     with col2:
@@ -1715,9 +1715,9 @@ def upload_y_calibration_ref_spe():
 
     load_srm, crop_srm, smooth_srm = st.tabs(
         [
-            "Load [SRM Ref]",
-            "Crop [SRM Ref]",  # 'Baseline corr',
-            "Smooth [SRM Ref]",
+            "Load [Ref]",
+            "Crop [Ref]",  # 'Baseline corr',
+            "Smooth [Ref]",
 
         ]
     )
@@ -1749,7 +1749,7 @@ def upload_y_calibration_ref_spe():
             st.session_state["cache_dicts"]["spectra_y_last"]["srm_ref"] = \
                 st.session_state["cache_dicts"]["spectra_y"]["srm_ref"]
             simple_plot_spe(
-                spe=srm_spe, label="Si", xlabel=r"Raman shift [{}]".format(spe_units)
+                spe=srm_spe, label="Reference spectrum", xlabel=r"Raman shift [{}]".format(spe_units)
             )
 
     with crop_srm:
@@ -1761,7 +1761,8 @@ def upload_y_calibration_ref_spe():
             srm_spe = st.session_state["cache_dicts"]["spectra_y_last"]["srm_ref"]
             spe_units = srm_spe.meta["units"]
 
-            label, xlabel = "SRM Ref", r"Raman shift [{}]".format(spe_units)
+            label, xlabel = "Reference spectrum", r"Raman shift [{}]".format(
+                spe_units)
             ax = srm_spe.plot(label=label, linestyle="dashed", color="blue")
             ax.set_xlabel(xlabel)
 
@@ -1885,7 +1886,7 @@ def upload_y_calibration_ref_spe():
                 state_settings.crop = settings_crop
 
             if use_crop or submit_neon_crop_btn:
-                ax = spe_croped.plot(ax=ax, label="SRM Ref crop", color="red")
+                ax = spe_croped.plot(ax=ax, label="Ref crop", color="red")
 
             fig = ax.get_figure()
             st.pyplot(fig)
@@ -1903,7 +1904,8 @@ def upload_y_calibration_ref_spe():
             srm_spe = st.session_state["cache_dicts"]["spectra_y"]["srm_ref"]
             spe_units = srm_spe.meta["units"]
 
-            label, xlabel = "SRM Ref", r"Raman shift [{}]".format(spe_units)
+            label, xlabel = "Reference spectrum", r"Raman shift [{}]".format(
+                spe_units)
             ax = srm_spe.plot(label=label, linestyle="dashed", color='blue')
             ax.set_xlabel(xlabel)
             # ax.set_ylabel("Si", color="blue")
@@ -2014,10 +2016,11 @@ def upload_y_calibration_ref_spe():
 
                 )
 
-                red_patch = mpatches.Patch(color="blue", label="SRM Ref")
+                red_patch = mpatches.Patch(
+                    color="blue", label="Reference spectrum")
 
                 blue_patch = mpatches.Patch(
-                    color="red", label="SRM Ref smooth")
+                    color="red", label="Ref smooth")
 
                 ax2.legend(handles=[red_patch, blue_patch])
 
@@ -2373,9 +2376,9 @@ elif x_calib_btn == "btn_derive_y_calibration":
 
     # fig, ax = plt.subplots(1, 1, figsize=(15, 10))
     ax = spe_srm_original.plot(
-        label="SRM experimental original", color="blue")
+        label="Reference original", color="blue")
 
-    ax = spe_srm.plot(ax=ax, label="SRM experimental", color="red")
+    ax = spe_srm.plot(ax=ax, label="Reference spectrum", color="red")
 
     ax.legend(loc="upper left")
 
