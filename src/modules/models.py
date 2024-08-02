@@ -12,6 +12,7 @@ import ramanchada2 as rc2
 import streamlit as st
 from streamlit.runtime.uploaded_file_manager import DeletedFile, UploadedFile
 
+
 from pydantic import BaseModel
 from typing import Literal
 
@@ -32,6 +33,15 @@ class StateNormalize(BaseModel):
 
 class SNIPBaselineArgs(BaseModel):
     niter: int = 30
+
+
+class StateSmooth(BaseModel):
+    use_smooth: bool = False
+    method: Literal['savgol', 'wiener', 'median',
+                    'gauss', 'lowess', 'boxcar'] = 'savgol'
+
+    savgol_window_length: int = 5
+    savgol_polyorder: int = 3
 
 
 class ALSBaselineArgs(BaseModel):
@@ -58,12 +68,23 @@ class StatePeakFind(BaseModel):
     # value_sharpening: str | None = Neone  # None | hhte
     value_strategy: str | None = None  # only string
 
+# class StateSmooth()
+
 
 class StateSpectrum(BaseModel):
     crop: StateCrop
-    normalize: StateNormalize
+    normalize: StateNormalize | None = None
     peak_find: StatePeakFind | None = None
     baseline_corr: StateBaselineCorrection | None = None
+
+
+class StateSpectrumSRMRef(BaseModel):
+
+    crop: StateCrop = StateCrop()
+    smooth: StateSmooth = StateSmooth()
+
+
+default_state_srm_ref = StateSpectrumSRMRef()
 
 
 default_peak_find_neon = StatePeakFind(value_sharpening=None,

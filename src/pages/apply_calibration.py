@@ -3,13 +3,13 @@ from collections import defaultdict
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
-
 import pandas as pd
 
 import streamlit as st
 from front_end.htmlTemplates import css
 
 from modules.navigation_bar import navbar
+from ramanchada2.io.output.write_csv import write_csv as io_write_csv
 
 from modules.models import default_state_target, StateNormalize, StateCrop
 from modules.util import (
@@ -350,6 +350,20 @@ with st.sidebar:
             "btn_press"
         ] = "apply_x_calib_btn"
 
+    apply_y_calib_btn = st.button("Apply Y-Calibration")
+
+    if apply_y_calib_btn:
+        if (
+            "target_spe_current"
+            not in st.session_state["cache_dicts"]["page01_load_spe"]
+        ):
+            st.error("Target spectrum not loaded")
+
+        assert "ycalibration_model" in st.session_state["cache_dicts"]["y_calibration"]
+        st.session_state["cache_dicts"]["page03_apply_calib"][
+            "btn_press"
+        ] = "apply_y_calib_btn"
+
 
 btn_press = None
 if "btn_press" in st.session_state["cache_dicts"]["page03_apply_calib"]:
@@ -357,9 +371,44 @@ if "btn_press" in st.session_state["cache_dicts"]["page03_apply_calib"]:
 
 # target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"]
 
-if btn_press == "apply_x_calib_btn":
+if btn_press == "apply_y_calib_btn":
 
-    from matplotlib import pyplot as plt
+    spe_target = st.session_state["cache_dicts"]["page01_load_spe"][
+        "target_spe_current"]
+
+    ycalmodel = st.session_state["cache_dicts"]["y_calibration"]["ycalibration_model"]
+    spe_srm = st.session_state["cache_dicts"]["spectra_y_current"]["srm_ref"]
+
+    # fig, ax = plt.subplots(1, 1, figsize=(15, 10))
+
+# with st.form("derive_y_calibration"):
+    # col_srm, col1, col2 = st.columns([1, 1, 1])
+    # with col_srm:
+    # btn_download_srm = st.button("Download Y-calibrated spectrum")
+
+    ax = spe_srm.plot(label="SRM experimental", color="red")
+
+    spe_target.plot(ax=ax, label="Target spectrum", color="blue")
+
+    spe_ycalibrated = ycalmodel.process(spe_target)
+
+    spe_ycalibrated.plot(label="Y-calibrated", color="green", ax=ax.twinx())
+    fig = ax.get_figure()
+    st.pyplot(fig)
+
+    csv = io_write_csv(spe_ycalibrated.x, spe_ycalibrated.y)
+    str_csv = ''.join(csv)
+    st.download_button(
+        "Download Y-Calibrated spectrum (CSV)",
+        data=str_csv,
+        file_name="ycalibrated_spectrum.csv",
+    )
+
+    # if btn_download_srm:
+    #     spe_ycalibrated.write_csv("ycalibrated_spectrum.csv")
+
+
+if btn_press == "apply_x_calib_btn":
 
     target_spe = st.session_state["cache_dicts"]["page01_load_spe"][
         "target_spe_current"
@@ -409,6 +458,13 @@ if btn_press == "apply_x_calib_btn":
 
     st.pyplot(fig)
 
+    csv = io_write_csv(target_calibrated.x, target_calibrated.y)
+    str_csv = ''.join(csv)
+    st.download_button(
+        "Download X-Calibrated spectrum (CSV)",
+        data=str_csv,
+        file_name="xcalibrated_spectrum.csv",
+    )
 
 elif btn_press == "target_spe_btn":
 

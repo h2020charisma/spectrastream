@@ -61,7 +61,7 @@ str_markdown = """
 # 
 Welcome to **SpectraStream**, a user-friendly app designed to simplify the process of generating harmonized Raman spectra, based on [[ https://www.h2020charisma.eu/ | CHARISMA  ]] calibration protocols. 
 
-##Purpose and Functionality
+## Purpose and Functionality
 
 ### Ultimate Goal
 
@@ -127,7 +127,7 @@ All spectrum upload options come with integrated tools to process Raman spectra:
 
 ## Advanced users
 
-SpectraStream is a demonstration and does not support batch mode.  For advanced users, consider [[ https://github.com/h2020charisma/ramanchada2 | RamanChada2]]  Python library and [[ https://github.com/h2020charisma/ramanchada2 | Oranchada ]]  user interface (an [[ https://orangedatamining.com/ | Orange  ]] add-on) .
+SpectraStream is a demonstration and does not support batch mode.  For advanced users, consider [[ https://github.com/h2020charisma/ramanchada2 | RamanChada2]]  Python library and [[ https://github.com/h2020charisma/oranchada | Oranchada ]]  user interface (an [[ https://orangedatamining.com/ | Orange  ]] add-on) .
 """
 
 st.markdown(str_markdown)

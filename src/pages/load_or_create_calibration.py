@@ -16,12 +16,14 @@ from modules.models import (
     ALSBaselineArgs,
     default_state_neon,
     default_state_si,
+    default_state_srm_ref,
     SNIPBaselineArgs,
     StateBaselineCorrection,
     StateCrop,
     StateNormalize,
     StatePeakFind,
     StateSpectrum,
+    StateSmooth
 )
 
 from modules.navigation_bar import navbar
@@ -160,11 +162,8 @@ def load_calibration():
 
         xcalibration = load_calibration_file(uploaded_calibration)
         st.session_state["cache_dicts"]["x_calibration"][
-            "xcalibration_model"
-        ] = xcalibration
-        st.session_state["cache_strings"][
-            "x_calibration"
-        ] = "uploaded_x_calibration_btn"
+            "xcalibration_model"] = xcalibration
+        st.session_state["cache_strings"]["x_calibration"] = "uploaded_x_calibration_btn"
 
         return xcalibration
     return None
@@ -224,8 +223,31 @@ def load_calibration_spectrum_si():
         # ] = "uploaded_si_calib_spectra_btn"
 
 
-def page_call_STD1_X_Calibration():
-    pass
+def load_calibration_spectrum_srm_ref():
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        uploaded_srm_spec = st.file_uploader(
+            key='upload_srm_ref',
+            label="Load SRM ref spectrum",
+            accept_multiple_files=False,
+        )
+    with col2:
+        units = st.selectbox(key='units_select_srm_ref',
+                             label="Select units", options=[
+                                 "cm-1", "nm"], index=0)
+
+        # upload_si_spe_btn = st.form_submit_button("Load spectrum")
+
+    if uploaded_srm_spec:
+        si_spe = process_file_spe([uploaded_srm_spec], label="Si", units=units)
+        # meta_dct = target_spe.meta
+        st.session_state["cache_dicts"]["spectra_y"]["srm_ref"] = si_spe
+
+
+# def page_call_STD1_X_Calibration():
+#     pass
 
 
 def create_x_calibration_sidebar_expander():
@@ -234,27 +256,28 @@ def create_x_calibration_sidebar_expander():
 
         # load_calibration_spectrum_neon()
 
-        with st.form("STD1 Process"):
+        # with st.form("STD1 Process"):
 
-            page_call_STD1_X_Calibration()
+        #     page_call_STD1_X_Calibration()
 
-        submitted_btn_st1 = st.button("Neon spectrum")
+        submitted_btn_st1 = st.button("1. Neon spectrum")
+
         if submitted_btn_st1:
 
             st.session_state["cache_strings"]["x_calibration"] = "submitted_std1_btn"
 
-        submitted_btn_derive_x = st.button("Derive X-Calibration curve")
+        submitted_btn_derive_x = st.button("2. Derive X-Calibration curve")
 
         if submitted_btn_derive_x:
 
             st.session_state["cache_strings"]["x_calibration"] = "btn_derive_x_calibration_curve"
 
-        submitted_btn_st2 = st.button("Si spectrum")
+        submitted_btn_st2 = st.button("3. Si spectrum")
         if submitted_btn_st2:
 
             st.session_state["cache_strings"]["x_calibration"] = "submitted_std2_btn"
 
-        submitted_btn_lazer_zeroing = st.button("Lazer zeroing",
+        submitted_btn_lazer_zeroing = st.button("4. Lazer zeroing",
                                                 # disabled=st.session_state['cache_bools'].get('disable_lazer_zeroing', True)
                                                 )
 
@@ -267,7 +290,7 @@ def create_x_calibration_sidebar_expander():
 
         calibration_file_name = st.text_input(
             label="Calibration file name",
-            placeholder="calibration_file_name.pkl",
+            placeholder="xcalibration_file_name.pkl",
             value="calibration_file_name.pkl",
         )
         if "xcalibration_model" in st.session_state["cache_dicts"]["x_calibration"]:
@@ -282,9 +305,10 @@ def create_x_calibration_sidebar_expander():
 
 
 def create_y_calibration_sidebar_expander():
-    with st.expander("Create Y-Calibration", expanded=False):
+    expander = st.expander("Create Y-Calibration", expanded=False)
+    with expander:
         st.error("Under development!")
-        material_settings_expander()
+        # material_settings_expander()
 
         if "config_certs" not in st.session_state["cache_dicts"]["material_settings"]:
             certificates = CertificatesDict()
@@ -300,58 +324,73 @@ def create_y_calibration_sidebar_expander():
 
         settings = st.session_state["cache_dicts"]["instrument_settings"]["settings"]
         instrument_wl = settings["laser_wavelength"]
+        st.text('Wave length: {}'.format(instrument_wl))
 
         certs_dict = config_certs[str(instrument_wl)]
         certificate_id = st.selectbox(
             label="Reference material certificate",
             options=list(certs_dict.keys()),
             index=0,
+            on_change=update_x_calibration_btn("btn_save_material_certificate"),
+
         )
 
         certificate_data = certs_dict[certificate_id]
+        st.session_state["cache_dicts"]["y_calib"]["material_certificate"] = certificate_data
         # st.write(certificate_data)
 
-        # btn_set_instrument_wl = st.form_submit_button(
-        #     "Save instrument settings")
-        if st.button("Apply certificate"):
+        # st.session_state["cache_strings"]["x_calibration"] = "btn_save_material_certificate"
 
-            st.session_state["cache_dicts"]["material_certificate"] = certificate_data
-            # YCalibrationCertificate : certificate_data
+        submitted_btn_srm_experimental = st.button("SRM Experimental")
+        if submitted_btn_srm_experimental:
+            st.session_state["cache_strings"]["x_calibration"] = "submitted_btn_srm_experimental"
 
+        derive_y_calibration_btn = st.button(key='derive_y_calibration_btn',
+                                             label='Derive Y-calibration')
+        if derive_y_calibration_btn:
             st.session_state["cache_strings"][
                 "x_calibration"
-            ] = "btn_save_material_certificate"
+            ] = "btn_derive_y_calibration"
 
-        with st.form("SRM experimental"):
-            st.write("SRM Experimental spectrum")
+            if "settings" not in st.session_state["cache_dicts"]["instrument_settings"]:
+                st.error("Set laser wavelength from Instrument settings page")
 
-            submitted_btn_srm_experimental = st.form_submit_button(
-                "SRM Experimental")
-            if submitted_btn_srm_experimental:
-                st.session_state["cache_strings"][
-                    "x_calibration"
-                ] = "submitted_btn_srm_experimental"
+            instrument_settings = st.session_state["cache_dicts"]["instrument_settings"][
+                "settings"]
 
-        with st.form("Derive Y-calibration"):
-            st.write("Derive Y-calibration")
-            st.write("Y-calibration setup")
+            lazer_wavelength = instrument_settings["laser_wavelength"]
 
-            submitted_btn_derive_y = st.form_submit_button("Run")
+            ycertificate_data: YCalibrationCertificate = st.session_state[
+                "cache_dicts"]["y_calib"]["material_certificate"]
 
-            if submitted_btn_derive_y:
-                st.session_state["cache_strings"][
-                    "x_calibration"
-                ] = "btn_derive_y_calibration"
+            spe_srm = st.session_state["cache_dicts"]["spectra_y_current"]["srm_ref"]
 
-        with st.form("Save Y-calibration"):
-            st.write("Save Y-calibration")
+            ycal = YCalibrationComponent(laser_wl=lazer_wavelength,
+                                         reference_spe_xcalibrated=spe_srm,
+                                         certificate=ycertificate_data)
 
-            submitted_btn_save_y = st.form_submit_button("Run")
+            st.session_state["cache_dicts"]["y_calibration"]["ycalibration_model"] = ycal
 
-            if submitted_btn_save_y:
-                st.session_state["cache_strings"][
-                    "x_calibration"
-                ] = "btn_save_y_calibration"
+        import pickle
+
+        calibration_file_name = st.text_input(
+            label="Calibration file name",
+            placeholder="ycalibration_file_name.pkl",
+            value="ycalibration_file_name.pkl",
+        )
+        if ("ycalibration_model" in st.session_state["cache_dicts"]["y_calibration"] and
+                "y_calibration" in st.session_state["cache_dicts"]):
+
+            calmodel = st.session_state["cache_dicts"]["y_calibration"]["ycalibration_model"]
+            st.download_button(
+                "Download Y-Calibration",
+                data=pickle.dumps(calmodel),
+                file_name=calibration_file_name,
+            )
+        # st.write('expander:')
+        # st.write(type(expander.expanded))
+        # if expander.expanded and not derive_y_calibration_btn and not submitted_btn_srm_experimental:
+        #     st.session_state["cache_strings"]["x_calibration"] = "btn_save_material_certificate"
 
 
 def process_x_calibration_neon_creation():
@@ -931,7 +970,7 @@ def process_x_calibration_neon_creation():
         st.session_state["cache_dicts"]["spectra_x_current"]["neon"] = st.session_state["cache_dicts"]["spectra_x_last"]["neon"]
 
 
-def __process_x_calibration_si_creation():
+def process_x_calibration_si_creation():
 
     load_ts, crop_ts, baseline_ts, normalize_ts, peakfind_ts, peakfit_ts = st.tabs(
         [
@@ -1672,6 +1711,337 @@ def __process_x_calibration_si_creation():
     #     st.session_state["cache_dicts"]["spectra_x_last"]["si"]
 
 
+def upload_y_calibration_ref_spe():
+
+    load_srm, crop_srm, smooth_srm = st.tabs(
+        [
+            "Load [SRM Ref]",
+            "Crop [SRM Ref]",  # 'Baseline corr',
+            "Smooth [SRM Ref]",
+
+        ]
+    )
+
+    if "srm_ref" in st.session_state["cache_dicts"]["spectrum_settings"]:
+        state_settings = st.session_state["cache_dicts"]["spectrum_settings"]["srm_ref"]
+    else:
+        st.session_state["cache_dicts"]["spectrum_settings"]["srm_ref"] = default_state_srm_ref
+
+    state_settings = st.session_state["cache_dicts"]["spectrum_settings"]["srm_ref"]
+
+    # print("State settings si start..")
+    # print(state_settings)
+    # print('------ END ------')
+    import time
+
+    print("BEFORE TABS SRM REF, --- time: {} ---------".format(time.strftime("%X %x %Z")))
+
+    with load_srm:
+        print("IN LOAD SRM REF")
+
+        load_calibration_spectrum_srm_ref()
+
+        if "srm_ref" in st.session_state["cache_dicts"]["spectra_y"]:
+            srm_spe = st.session_state["cache_dicts"]["spectra_y"]["srm_ref"]
+            spe_units = srm_spe.meta["units"]
+
+            # st.session_state["cache_dicts"]["spectra_x_current"]["si"] = si_spe
+            st.session_state["cache_dicts"]["spectra_y_last"]["srm_ref"] = \
+                st.session_state["cache_dicts"]["spectra_y"]["srm_ref"]
+            simple_plot_spe(
+                spe=srm_spe, label="Si", xlabel=r"Raman shift [{}]".format(spe_units)
+            )
+
+    with crop_srm:
+
+        print("IN CROP SRM REF")
+        if "srm_ref" in st.session_state["cache_dicts"]["spectra_y"]:
+            print("INSIDE IF CROP SRM REF")
+            # st.session_state["cache_dicts"]["spectra_y"]["si"]
+            srm_spe = st.session_state["cache_dicts"]["spectra_y_last"]["srm_ref"]
+            spe_units = srm_spe.meta["units"]
+
+            label, xlabel = "SRM Ref", r"Raman shift [{}]".format(spe_units)
+            ax = srm_spe.plot(label=label, linestyle="dashed", color="blue")
+            ax.set_xlabel(xlabel)
+
+            state_settings = st.session_state["cache_dicts"]["spectrum_settings"]["srm_ref"]
+
+            # print('state_settings in the beginning of crop')
+            # print(state_settings)
+            # print('--- == end == ----')
+            settings_crop: StateCrop = state_settings.crop
+
+            col1_upn, col2_upn = st.columns([1, 1])
+            with col1_upn:
+
+                # callback_change_value(
+                #     key="crop_neon_checkbox", value=settings_crop.use_crop)
+
+                use_crop = st.checkbox(
+                    key="crop_neon_checkbox",
+                    label="Use crop",
+                    value=settings_crop.use_crop,
+                    on_change=update_x_calibration_btn(
+                        "submitted_btn_srm_experimental"),
+                )
+            with col2_upn:
+                set_default_btn = st.button(
+                    key="crop_neon_default_btn",
+                    label="Default Settings",
+                    help="Reset default values of all settings",
+                )
+
+            if set_default_btn:
+                state_settings.crop = default_state_neon.crop
+                st.session_state["cache_dicts"]["spectrum_settings"][
+                    "neon"
+                ] = state_settings
+                settings_crop: StateCrop = state_settings.crop
+
+            # Create a form for the input fields and submit button
+            with st.form(key="srm_crop_form"):
+                # Create three columns: two for input fields and one for the submit button
+                # spe = st.session_state["cache_dicts"]["spectra_y_current"]["neon"]
+                spe = st.session_state["cache_dicts"]["spectra_y_last"]["srm_ref"]
+
+                col0, col1, col2 = st.columns([0.5, 1, 1])
+
+                with col0:
+                    # This is to adjust the position of the button
+                    st.write("")
+                    submit_neon_crop_btn = st.form_submit_button(
+                        label="Update",
+                        #   disabled=not use_crop
+                    )
+
+                with col1:
+                    min_val = (
+                        settings_crop.crop_min if settings_crop.crop_min else min(
+                            spe.x)
+                    )
+                    print("Min val: ", min_val)
+
+                    if set_default_btn:
+                        callback_change_value("min_crop_input_srm", min_val)
+                    # callback_change_value('min_crop_input', min_val)
+
+                    min_val = st.number_input(
+                        "Minimum Value:",
+                        value=min_val,
+                        format="%f",
+                        key="min_crop_input_srm",
+                        # disabled=not use_crop
+                    )
+                with col2:
+                    max_val = (
+                        settings_crop.crop_max if settings_crop.crop_max else max(
+                            spe.x)
+                    )
+                    # print('Max val: ', max_val)
+
+                    if set_default_btn:
+                        callback_change_value("max_crop_input_srm", max_val)
+                    # callback_change_value('max_crop_input', max_val)
+
+                    max_val = st.number_input(
+                        "Maximum Value:",
+                        value=max_val,
+                        format="%f",
+                        key="max_crop_input_srm",
+                        # disabled=not use_crop
+                    )
+
+            # Check if the form is submitted
+            # if True:  # submit_neon_crop_btn:
+            if min_val > max_val:
+                st.error("Minimum value cannot be greater than Maximum value.")
+            # else:
+
+            update_x_calibration_btn("submitted_btn_srm_experimental")
+            # st.success(f"Range set from {min_val} to {max_val}")
+            settings_crop.use_crop = use_crop
+            settings_crop.crop_min = min_val
+            settings_crop.crop_max = max_val
+
+            if submit_neon_crop_btn:
+                spe_croped = spe.trim_axes(
+                    method="x-axis", boundaries=(min_val, max_val)
+                )
+
+            if use_crop:
+                # if not submit_neon_crop_btn:
+                spe_croped = spe.trim_axes(
+                    method="x-axis", boundaries=(min_val, max_val)
+                )
+                # st.session_state["cache_dicts"]["spectra_y_current"][
+                #     "neon"
+                # ] = spe_croped
+                st.session_state["cache_dicts"]["spectra_y_last"][
+                    "srm_ref"
+                ] = spe_croped
+
+                st.session_state["cache_dicts"]["spectra_y_crop"]["srm_ref"] = spe_croped
+                state_settings.crop = settings_crop
+
+            if use_crop or submit_neon_crop_btn:
+                ax = spe_croped.plot(ax=ax, label="SRM Ref crop", color="red")
+
+            fig = ax.get_figure()
+            st.pyplot(fig)
+
+            st.session_state["cache_dicts"]["spectrum_settings"][
+                "srm_ref"
+            ] = state_settings
+
+    with smooth_srm:
+        print("IN NORMALIZE")
+
+        if "srm_ref" in st.session_state["cache_dicts"]["spectra_y"]:
+            assert "srm_ref" in st.session_state["cache_dicts"]["spectra_y_last"]
+
+            srm_spe = st.session_state["cache_dicts"]["spectra_y"]["srm_ref"]
+            spe_units = srm_spe.meta["units"]
+
+            label, xlabel = "SRM Ref", r"Raman shift [{}]".format(spe_units)
+            ax = srm_spe.plot(label=label, linestyle="dashed", color='blue')
+            ax.set_xlabel(xlabel)
+            # ax.set_ylabel("Si", color="blue")
+
+            state_settings = st.session_state["cache_dicts"]["spectrum_settings"]["srm_ref"]
+
+            settings_smooth: StateSmooth = state_settings.smooth
+
+            col1_up, col2_up = st.columns([1, 1])
+
+            with col2_up:
+                set_default_btn = st.button(
+                    key="smooth_srm_default_btn",
+                    label="Default Settings",
+                    help="Reset default values of all settings",
+                )
+
+                if set_default_btn:
+
+                    state_settings.smooth = default_state_srm_ref.smooth
+
+                    st.session_state["cache_dicts"]["spectrum_settings"][
+                        "srm_ref"
+                    ] = state_settings
+                    settings_smooth: StateSmooth = state_settings.smooth
+
+            with col1_up:
+
+                if set_default_btn:
+
+                    callback_change_value(
+                        "smooth_srm_checkbox", settings_smooth.use_smooth
+                    )
+                print("settings smooth: ")
+                print(settings_smooth)
+
+                use_smooth = st.checkbox(
+                    key="smooth_srm_checkbox",
+                    label="Use Smoothing",
+                    value=settings_smooth.use_smooth,
+                    on_change=update_x_calibration_btn(
+                        "submitted_btn_srm_experimental"),
+                )
+                method_options = ['savgol', 'wiener', 'median',
+                                  'gauss', 'lowess', 'boxcar']
+
+            with st.form("srm_ref_form"):
+
+                col0, col1, col3 = st.columns([1, 2, 2])
+
+                with col0:
+                    # This is to adjust the position of the button
+                    st.write("")
+                    btn_update_srm_form = st.form_submit_button(
+                        label="Update",
+                        #   disabled=not use_crop
+                    )
+
+                with col1:
+
+                    index_method = method_options.index(settings_smooth.method)
+
+                    if set_default_btn:
+                        index_method = method_options.index(
+                            settings_smooth.method)
+                        callback_change_value(
+                            "select_box_srm_method", default_state_srm_ref.smooth.method)
+
+                    method = st.selectbox(label="Select method (and Update)",
+                                          key='select_box_srm_method',
+                                          options=method_options,
+                                          index=index_method)
+                kwargs = {}
+                with col3:
+                    # st.write(method)
+                    if method == 'savgol':
+                        # st.write('savgolll')
+                        col_window_l, col_polyorder = st.columns([1, 1])
+                        with col_window_l:
+
+                            savgol_window_length = st.number_input(label='window length',
+                                                                   min_value=2,
+                                                                   max_value=31,
+                                                                   value=settings_smooth.savgol_window_length)
+
+                            # st.write('savgol')
+                        with col_polyorder:
+                            savgol_polyorder = st.number_input(label='polyorder',
+                                                               min_value=1,
+                                                               max_value=7,
+                                                               value=settings_smooth.savgol_polyorder)
+                        kwargs = {"window_length": savgol_window_length,
+                                  "polyorder": savgol_polyorder}
+
+            if btn_update_srm_form or use_smooth:
+
+                spe_smooth = srm_spe.smoothing_RC1(method=method, **kwargs)
+
+                if use_smooth:
+
+                    st.session_state["cache_dicts"]["spectra_y_last"]["srm_ref"] = spe_smooth
+
+                ax2 = ax.twinx()
+
+                ax2 = spe_smooth.plot(
+                    ax=ax2,
+                    color="red",
+
+                )
+
+                red_patch = mpatches.Patch(color="blue", label="SRM Ref")
+
+                blue_patch = mpatches.Patch(
+                    color="red", label="SRM Ref smooth")
+
+                ax2.legend(handles=[red_patch, blue_patch])
+
+                fig = ax2.get_figure()
+                st.pyplot(fig)
+
+                settings_smooth.use_smooth = use_smooth
+                state_settings.smooth = settings_smooth
+
+            else:
+
+                fig = ax.get_figure()
+                st.pyplot(fig)
+
+            state_settings.smooth = settings_smooth
+
+            st.session_state["cache_dicts"]["spectrum_settings"][
+                "srm_ref"
+            ] = state_settings
+
+    if "spectra_y_last" in st.session_state["cache_dicts"] and "srm_ref" in st.session_state["cache_dicts"]["spectra_y_last"]:
+        st.session_state["cache_dicts"]["spectra_y_current"]["srm_ref"] = st.session_state["cache_dicts"]["spectra_y_last"]["srm_ref"]
+
+
 def update_x_calibration_btn(value):
     def update_x_calibraiton_val():
         st.session_state["cache_strings"]["x_calibration_"] = value
@@ -1770,7 +2140,7 @@ elif x_calib_btn == "submitted_std1_btn":
 
 elif x_calib_btn == "submitted_std2_btn":
 
-    __process_x_calibration_si_creation()
+    process_x_calibration_si_creation()
     ###################################################
 
 elif x_calib_btn in ["btn_derive_x_calibration_curve", "btn_lazer_zeroing"]:
@@ -1947,9 +2317,8 @@ elif x_calib_btn == "btn_save_x_calibration":
 
 elif x_calib_btn == "btn_save_material_certificate":
 
-    certificate_data: YCalibrationCertificate = st.session_state["cache_dicts"][
-        "material_certificate"
-    ]
+    certificate_data: YCalibrationCertificate = st.session_state[
+        "cache_dicts"]["y_calib"]["material_certificate"]
     # st.write(certificate_data)
     # st.write(type(certificate_data))
     ax = certificate_data.plot()
@@ -1963,28 +2332,66 @@ elif x_calib_btn == "uploaded_x_calibration_btn":
     fig.set_size_inches(40, 25)
     st.pyplot(fig)
 
-elif x_calib_btn == "btn_save_y_calibration":
 
-    ycertificate_data: YCalibrationCertificate = st.session_state["cache_dicts"][
-        "instrument_settings"
-    ]["certificate_data"]
-    reference_spe_xcalibrated = st.session_state["cache_dicts"]["spectra_x_current"][
-        "neon"
-    ]
+elif x_calib_btn == "submitted_btn_srm_experimental":
 
-    laser_wl = ycertificate_data.wavelength
+    upload_y_calibration_ref_spe()
 
-    st.write(ycertificate_data)
-    st.write(type(ycertificate_data))
-    ax = ycertificate_data.plot()
+    # reference_spe_xcalibrated = st.session_state["cache_dicts"]["spectra_x_current"][
+    #     "neon"
+    # ]
+elif x_calib_btn == "btn_derive_y_calibration":
+
+    # laser_wl = ycertificate_data.wavelength
+    # if "settings" not in st.session_state["cache_dicts"]["instrument_settings"]:
+    #     st.error("Set laser wavelength from Instrument settings page")
+
+    # instrument_settings = st.session_state["cache_dicts"]["instrument_settings"][
+    #     "settings"]
+
+    # lazer_wavelength = instrument_settings["laser_wavelength"]
+
+    # ycertificate_data: YCalibrationCertificate = st.session_state[
+    #     "cache_dicts"]["y_calib"]["material_certificate"]
+
+    # spe_srm = st.session_state["cache_dicts"]["spectra_y_current"]["srm_ref"]
+
+    # ycal = YCalibrationComponent(laser_wl=lazer_wavelength,
+    #                              reference_spe_xcalibrated=spe_srm,
+    #                              certificate=ycertificate_data)
+
+    # st.session_state["cache_dicts"]["y_calibration"]["ycalibration_model"]
+
+    ycalmodel = st.session_state["cache_dicts"]["y_calibration"]["ycalibration_model"]
+    spe_srm_original = st.session_state["cache_dicts"]["spectra_y"]["srm_ref"]
+    spe_srm = st.session_state["cache_dicts"]["spectra_y_current"]["srm_ref"]
+
+    # with st.form("derive_y_calibration"):
+    # col_srm, col1, col2 = st.columns([1, 1, 1])
+    # with col_srm:
+    # btn_download_srm = st.button("Download SRM Experimental")
+
+    # fig, ax = plt.subplots(1, 1, figsize=(15, 10))
+    ax = spe_srm_original.plot(
+        label="SRM experimental original", color="blue")
+
+    ax = spe_srm.plot(ax=ax, label="SRM experimental", color="red")
+
+    ax.legend(loc="upper left")
+
+    certificate_data: YCalibrationCertificate = st.session_state[
+        "cache_dicts"]["y_calib"]["material_certificate"]
+
+    ax_twin = ax.twinx()
+    ax = certificate_data.plot(
+        # label="Theoretical spectrum",
+        color="green", ax=ax_twin)
+    ax_twin.legend(loc="upper right")
+
     fig = ax.get_figure()
     st.pyplot(fig)
 
-    y_calibration = YCalibrationComponent(
-        laser_wl,
-        reference_spe_xcalibrated=reference_spe_xcalibrated,
-        certificate=ycertificate_data,
-    )
+    # st.write("Y Calibration component derived")
 
     y_calib_string = """>>> laser_wl = 785
         >>> ycert = YCalibrationCertificate.load(wavelength=785, key="SRM2241")
@@ -2002,12 +2409,12 @@ elif x_calib_btn == "btn_save_y_calibration":
         !!! Think about save / load Y-calibration - to be developed!
         """
 
-    """
+    nb_str = """
     NB! Signal to noise ratio to be added - (Enrique)
     NB! Dark background - to be extracted
 
     """
-    st.write(y_calib_string)
+    # st.write(y_calib_string)
 else:
     pass
 
