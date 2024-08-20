@@ -66,6 +66,9 @@ Welcome to **SpectraStream**, a user-friendly app designed to simplify the proce
 
 The ultimate goal of **SpectraStream** is to empower users to generate harmonized spectra effortlessly. By leveraging CHARISMA developed [ramanchada2](https://github.com/h2020charisma/ramanchada2) library in the background, **SpectraStream** ensures that even users with minimal technical knowledge can achieve accurate and consistent results.
 
+### Issues and Feedback
+-  [Report a bug]( https://github.com/h2020charisma/spectrastream/issues)
+-  [Leave feedback or start a discussion](https://github.com/h2020charisma/spectrastream/discussions)
 ### Key Features
 
 #### Ideal User Profile
