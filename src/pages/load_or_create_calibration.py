@@ -101,7 +101,7 @@ def material_settings_expander():
 
     config_certs = st.session_state["cache_dicts"]["material_settings"]["config_certs"]
     instrument_wl = st.selectbox(
-        label="Choose wave length", options=list(config_certs.keys()), index=0
+        label="Choose wavelength", options=list(config_certs.keys()), index=0
     )
 
     st.session_state["cache_dicts"]["material_settings"][
@@ -192,8 +192,7 @@ def load_calibration_spectrum_neon():
         )
 
     if uploaded_neon_spec:
-        neon_spe = process_file_spe(
-            [uploaded_neon_spec], label="Neon", units=units)
+        neon_spe = process_file_spe([uploaded_neon_spec], label="Neon", units=units)
         # meta_dct = target_spe.meta
         st.session_state["cache_dicts"]["spectra_x"]["neon"] = neon_spe
 
@@ -336,7 +335,7 @@ def create_y_calibration_sidebar_expander():
 
         settings = st.session_state["cache_dicts"]["instrument_settings"]["settings"]
         instrument_wl = settings["laser_wavelength"]
-        st.text("Wave length: {}".format(instrument_wl))
+        st.text("Wavelength: {}".format(instrument_wl))
 
         certs_dict = config_certs[str(instrument_wl)]
         certificate_id = st.selectbox(
@@ -524,8 +523,7 @@ def process_x_calibration_neon_creation():
 
                 with col1:
                     min_val = (
-                        settings_crop.crop_min if settings_crop.crop_min else min(
-                            spe.x)
+                        settings_crop.crop_min if settings_crop.crop_min else min(spe.x)
                     )
                     print("Min val: ", min_val)
 
@@ -542,8 +540,7 @@ def process_x_calibration_neon_creation():
                     )
                 with col2:
                     max_val = (
-                        settings_crop.crop_max if settings_crop.crop_max else max(
-                            spe.x)
+                        settings_crop.crop_max if settings_crop.crop_max else max(spe.x)
                     )
                     # print('Max val: ', max_val)
 
@@ -589,7 +586,7 @@ def process_x_calibration_neon_creation():
                 # st.session_state["cache_dicts"]["spectra_x_crop"]["neon"] = spe_croped
                 state_settings.crop = settings_crop
 
-            # if use_crop or submit_neon_crop_btn:
+                # if use_crop or submit_neon_crop_btn:
                 ax = spe_croped.plot(ax=ax, label="Neon crop", color="red")
 
             if submit_crop_btn:
@@ -650,7 +647,7 @@ def process_x_calibration_neon_creation():
 
                 use_normalize = st.checkbox(
                     key="normalize_neon_checkbox",
-                    label="Use Normalize",
+                    label="Use Min-max Normalization",
                     value=settings_normalize.use_normalize,
                     on_change=update_x_calibration_btn("submitted_std1_btn"),
                 )
@@ -687,8 +684,7 @@ def process_x_calibration_neon_creation():
 
                 red_patch = mpatches.Patch(color="blue", label="Neon")
 
-                blue_patch = mpatches.Patch(
-                    color="red", label="Neon normalized")
+                blue_patch = mpatches.Patch(color="red", label="Neon normalized")
 
                 ax2.legend(handles=[red_patch, blue_patch])
 
@@ -756,8 +752,7 @@ def process_x_calibration_neon_creation():
                         "window_length_neon", settings_peak_find.value_wlen
                     )
 
-                    callback_change_value(
-                        "width_neon", settings_peak_find.value_width)
+                    callback_change_value("width_neon", settings_peak_find.value_width)
                     # callback_change_value(
                     #     "hht_chain_neon", settings_peak_find.value_hht_chain
                     # )
@@ -863,8 +858,7 @@ def process_x_calibration_neon_creation():
                         key="strategy_neon",
                         label="strategy",
                         options=options_strategy,
-                        index=options_strategy.index(
-                            settings_peak_find.value_strategy),
+                        index=options_strategy.index(settings_peak_find.value_strategy),
                         # on_change=update_x_calibration_btn("submitted_std1_btn"),
                     )
 
@@ -883,8 +877,7 @@ def process_x_calibration_neon_creation():
 
                 # fig, ax = plt.subplots()
 
-                neon_peak_candidates.plot(
-                    ax=axs[1], fmt=":", label="Neon peaks")
+                neon_peak_candidates.plot(ax=axs[1], fmt=":", label="Neon peaks")
                 axs[1].set_xlabel(xlabel)
                 fig = axs[1].get_figure()
 
@@ -1259,8 +1252,7 @@ def process_x_calibration_si_creation():
                     baseline_current = settings_baseline.baseline_corr_type
 
                     if set_default_btn:
-                        callback_change_value(
-                            "select_baseline_si", baseline_current)
+                        callback_change_value("select_baseline_si", baseline_current)
 
                     # callback_change_value('min_crop_input', min_val)
                     options = [
@@ -1405,7 +1397,7 @@ def process_x_calibration_si_creation():
 
                 use_normalize = st.checkbox(
                     key="normalize_si_checkbox",
-                    label="Use Normalize",
+                    label="Use Min-max Normalization",
                     value=settings_normalize.use_normalize,
                     on_change=update_x_calibration_btn("submitted_std2_btn"),
                 )
@@ -1507,8 +1499,7 @@ def process_x_calibration_si_creation():
                         "window_length_si", settings_peak_find.value_wlen
                     )
 
-                    callback_change_value(
-                        "width_si", settings_peak_find.value_width)
+                    callback_change_value("width_si", settings_peak_find.value_width)
                     # callback_change_value(
                     #     "hht_chain_si", settings_peak_find.value_hht_chain
                     # )
@@ -1613,8 +1604,7 @@ def process_x_calibration_si_creation():
                         key="strategy_si",
                         label="strategy",
                         options=options_strategy,
-                        index=options_strategy.index(
-                            settings_peak_find.value_strategy),
+                        index=options_strategy.index(settings_peak_find.value_strategy),
                         # on_change=update_x_calibration_btn("submitted_std2_btn"),
                     )
 
@@ -1783,8 +1773,7 @@ def upload_y_calibration_ref_spe():
     import time
 
     print(
-        "BEFORE TABS SRM REF, --- time: {} ---------".format(
-            time.strftime("%X %x %Z"))
+        "BEFORE TABS SRM REF, --- time: {} ---------".format(time.strftime("%X %x %Z"))
     )
 
     with load_srm:
@@ -1815,8 +1804,7 @@ def upload_y_calibration_ref_spe():
             srm_spe = st.session_state["cache_dicts"]["spectra_y_last"]["srm_ref"]
             spe_units = srm_spe.meta["units"]
 
-            label, xlabel = "Reference spectrum", r"Raman shift [{}]".format(
-                spe_units)
+            label, xlabel = "Reference spectrum", r"Raman shift [{}]".format(spe_units)
             ax = srm_spe.plot(label=label, linestyle="dashed", color="blue")
             ax.set_xlabel(xlabel)
 
@@ -1875,8 +1863,7 @@ def upload_y_calibration_ref_spe():
 
                 with col1:
                     min_val = (
-                        settings_crop.crop_min if settings_crop.crop_min else min(
-                            spe.x)
+                        settings_crop.crop_min if settings_crop.crop_min else min(spe.x)
                     )
                     print("Min val: ", min_val)
 
@@ -1893,8 +1880,7 @@ def upload_y_calibration_ref_spe():
                     )
                 with col2:
                     max_val = (
-                        settings_crop.crop_max if settings_crop.crop_max else max(
-                            spe.x)
+                        settings_crop.crop_max if settings_crop.crop_max else max(spe.x)
                     )
                     # print('Max val: ', max_val)
 
@@ -1963,8 +1949,7 @@ def upload_y_calibration_ref_spe():
             srm_spe = st.session_state["cache_dicts"]["spectra_y"]["srm_ref"]
             spe_units = srm_spe.meta["units"]
 
-            label, xlabel = "Reference spectrum", r"Raman shift [{}]".format(
-                spe_units)
+            label, xlabel = "Reference spectrum", r"Raman shift [{}]".format(spe_units)
             ax = srm_spe.plot(label=label, linestyle="dashed", color="blue")
             ax.set_xlabel(xlabel)
             # ax.set_ylabel("Si", color="blue")
@@ -2037,8 +2022,7 @@ def upload_y_calibration_ref_spe():
                     index_method = method_options.index(settings_smooth.method)
 
                     if set_default_btn:
-                        index_method = method_options.index(
-                            settings_smooth.method)
+                        index_method = method_options.index(settings_smooth.method)
                         callback_change_value(
                             "select_box_srm_method", default_state_srm_ref.smooth.method
                         )
@@ -2094,8 +2078,7 @@ def upload_y_calibration_ref_spe():
                     color="red",
                 )
 
-                red_patch = mpatches.Patch(
-                    color="blue", label="Reference spectrum")
+                red_patch = mpatches.Patch(color="blue", label="Reference spectrum")
 
                 blue_patch = mpatches.Patch(color="red", label="Ref smooth")
 
@@ -2402,8 +2385,7 @@ elif x_calib_btn == "btn_save_x_calibration":
         path = str(rpath / "data" / xcalibration_filename)
         calmodel.save(path)
 
-        st.write("Saved X-calibration model in ",
-                 "./data/" + xcalibration_filename)
+        st.write("Saved X-calibration model in ", "./data/" + xcalibration_filename)
 
 
 elif x_calib_btn == "btn_save_material_certificate":
