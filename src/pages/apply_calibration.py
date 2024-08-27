@@ -422,6 +422,7 @@ if btn_press == "apply_calib_btn":
     x_calib = st.session_state["cache_bools"]["x_calib"]
     y_calib = st.session_state["cache_bools"]["y_calib"]
 
+    print(x_calib, y_calib)
     target_spe = st.session_state["cache_dicts"]["page01_load_spe"][
         "target_spe_current"
     ]
@@ -484,9 +485,9 @@ if btn_press == "apply_calib_btn":
             file_name="xcalibrated_spectrum.csv",
         )
 
-        spe_target = target_calibrated
+        target_spe = target_calibrated
 
-    if x_calib:
+    if y_calib:
 
         ycalmodel = st.session_state["cache_dicts"]["y_calibration"][
             "ycalibration_model"
@@ -495,12 +496,15 @@ if btn_press == "apply_calib_btn":
 
         ax = spe_srm.plot(label="SRM experimental", color="red")
 
-        spe_target.plot(ax=ax, label="Target spectrum", color="blue")
+        target_spe.plot(ax=ax, label="Target spectrum", color="blue")
 
-        spe_ycalibrated = ycalmodel.process(spe_target)
+        spe_ycalibrated = ycalmodel.process(target_spe)
 
         spe_ycalibrated.plot(label="Y-calibrated", color="green", ax=ax.twinx())
         fig = ax.get_figure()
+
+        spe_units = target_spe.meta["units"]
+        ax.set_xlabel(r"Raman shift " + spe_units)
         st.pyplot(fig)
 
         csv = io_write_csv(spe_ycalibrated.x, spe_ycalibrated.y)

@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
-import streamlit_pydantic as sp
-from pydantic import BaseModel, Field, ValidationError, parse_obj_as
-from typing import Set
-from enum import Enum
 from collections import defaultdict
 from copy import deepcopy
+from enum import Enum
+
+from typing import Set, TypedDict
 
 import pandas as pd
 
-from typing import TypedDict
-
-from pydantic import BaseModel, Field
-
 import streamlit as st
+import streamlit_pydantic as sp
 from front_end.htmlTemplates import css
 
 from modules.navigation_bar import navbar
@@ -25,6 +21,8 @@ from modules.util import (
     update_session_state,
 )
 
+from pydantic import BaseModel, Field, parse_obj_as, ValidationError
+
 from ramanchada2.protocols.calibration import (
     CalibrationModel,
     CertificatesDict,
@@ -33,8 +31,6 @@ from ramanchada2.protocols.calibration import (
     YCalibrationCertificate,
     YCalibrationComponent,
 )
-
-from ramanchada2.protocols.calibration import CalibrationModel
 
 
 # class InstrumentsMandatory(BaseModel):
@@ -46,23 +42,29 @@ if "settings" in st.session_state["cache_dicts"]["instrument_settings"]:
     settings = st.session_state["cache_dicts"]["instrument_settings"]["settings"]
 else:
     settings = defaultdict(str)
-    settings['laser_wavelength'] = 532
+    settings["laser_wavelength"] = 532
 
 
 class InstrumentSettings(BaseModel):
-    make_and_model_of_the_instrument: str | None = settings['make_and_model_of_the_instrument']
-    serial_number_of_the_instrument: str = settings['serial_number_of_the_instrument']
-    laser_wavelength: int = settings['laser_wavelength']
+    make_and_model_of_the_instrument: str | None = settings[
+        "make_and_model_of_the_instrument"
+    ]
+    serial_number_of_the_instrument: str = settings["serial_number_of_the_instrument"]
+    laser_wavelength: int = Field(
+        settings["laser_wavelength"],
+        description="Units: nm",
+        title="Lazer wavelength (nm)",
+    )
     # serial_number: str | None = settings['serial_number']
     # description: str | None = settings['description']
     # Another
     # instrument_model: str | None = settings['instrument_model']
-    device_type: str | None = settings['device_type']
+    device_type: str | None = settings["device_type"]
     # Optical path details
     # laser_waveletgth: str
-    numerical_aperture: str | None = settings['numerical_aperture']
-    grating: str | None = settings['grating']
-    slit: str | None = settings['slit']
+    numerical_aperture: str | None = settings["numerical_aperture"]
+    grating: str | None = settings["grating"]
+    slit: str | None = settings["slit"]
     # pinhole: str | None = settings[]
     # # Acquisition parameters
     # exposure_time: str | None = settings[]
@@ -146,8 +148,7 @@ st.title("Load instrument metadata")
 
 data = sp.pydantic_input(key="my_form", model=InstrumentSettings)
 if data:
-    st.session_state["cache_dicts"]["instrument_settings"]["settings"] = dict(
-        data)
+    st.session_state["cache_dicts"]["instrument_settings"]["settings"] = dict(data)
 # if True:
 #     print('Delete AFTER ')
 #     keys = [k for k in st.session_state.keys() if 'my_form' in k]

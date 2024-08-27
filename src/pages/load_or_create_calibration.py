@@ -881,6 +881,12 @@ def process_x_calibration_neon_creation():
                 axs[1].set_xlabel(xlabel)
                 fig = axs[1].get_figure()
 
+                st.download_button(
+                    "Download Peaks found (JSON)",
+                    data=neon_peak_candidates.json(),
+                    file_name="neon_peaks_found.json",
+                )
+
             if use_peak_find:
                 st.session_state["cache_dicts"]["spectra_x_peak_candidates"][
                     "neon"
@@ -1626,6 +1632,12 @@ def process_x_calibration_si_creation():
                 si_peak_candidates.plot(ax=axs[1], fmt=":", label="Si peaks")
                 axs[1].set_xlabel(xlabel)
                 fig = axs[1].get_figure()
+
+                st.download_button(
+                    "Download Peaks found (JSON)",
+                    data=si_peak_candidates.json(),
+                    file_name="si_peaks_found.json",
+                )
 
             if use_peak_find:
                 st.session_state["cache_dicts"]["spectra_x_peak_candidates"][
