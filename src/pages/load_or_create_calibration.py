@@ -467,7 +467,9 @@ def process_x_calibration_neon_creation():
             neon_spe = st.session_state["cache_dicts"]["spectra_x"]["neon"]
             spe_units = neon_spe.meta["units"]
 
+            spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
             label, xlabel = "Neon", r"Raman shift [{}]".format(spe_units)
+
             ax = neon_spe.plot(label=label, linestyle="dashed", color="blue")
             ax.set_xlabel(xlabel)
 
@@ -1059,6 +1061,8 @@ def process_x_calibration_si_creation():
             si_spe = st.session_state["cache_dicts"]["spectra_x_last"]["si"]
             spe_units = si_spe.meta["units"]
 
+            spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
+
             label, xlabel = "Si", r"Raman shift [{}]".format(spe_units)
             ax = si_spe.plot(label=label, linestyle="dashed", color="blue")
             ax.set_xlabel(xlabel)
@@ -1197,6 +1201,8 @@ def process_x_calibration_si_creation():
 
             si_spe = st.session_state["cache_dicts"]["spectra_x"]["si"]
             spe_units = si_spe.meta["units"]
+
+            spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
 
             label, xlabel = "Si", r"Raman shift [{}]".format(spe_units)
             ax = si_spe.plot(label=label, linestyle="dashed")
@@ -1373,6 +1379,8 @@ def process_x_calibration_si_creation():
             si_spe = st.session_state["cache_dicts"]["spectra_x"]["si"]
             spe_units = si_spe.meta["units"]
 
+            spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
+
             label, xlabel = "Si", r"Raman shift [{}]".format(spe_units)
             ax = si_spe.plot(label=label, linestyle="dashed")
             ax.set_xlabel(xlabel)
@@ -1473,7 +1481,7 @@ def process_x_calibration_si_creation():
         if "si" in st.session_state["cache_dicts"]["spectra_x"]:
             si_spe = st.session_state["cache_dicts"]["spectra_x"]["si"]
             spe_units = si_spe.meta["units"]
-
+            spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
             label, xlabel = "Si", r"Raman shift [{}]".format(spe_units)
 
             fig, axs = plt.subplots(2, 1, sharex=True, figsize=(12, 10))
@@ -2390,6 +2398,8 @@ elif x_calib_btn in ["btn_derive_x_calibration_curve", "btn_lazer_zeroing"]:
         si_calibrated = apply_calibration_x(calmodel, spe_si, si_units)
 
         si_calibrated.plot(ax=axes[1], color="orange", label="Si calibrated")
+        si_units = "$\mathrm{cm}^{-1}$" if si_units == "cm-1" else si_units
+
         axes[1].legend()
         axes[1].set_xlabel(r"Raman shift " + si_units)
         axes[1].set_xlim(520.45 - 50, 520.45 + 50)
