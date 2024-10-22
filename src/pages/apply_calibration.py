@@ -46,8 +46,7 @@ with st.sidebar:
     def set_target_spe_choice_change():
 
         spe_choice = st.session_state["cache_strings"]["target_spe_choice"]
-        assert spe_choice in target_spe_choices, (
-            spe_choice, target_spe_choices)
+        assert spe_choice in target_spe_choices, (spe_choice, target_spe_choices)
         if spe_choice == "Search target spectrum":
             set_spe_choice = "Load target spectrum"
         else:  # spe_choice == 'Load target spectrum':
@@ -120,8 +119,7 @@ def load_tabs_target_spectrum():
                 accept_multiple_files=False,
             )
         with col2:
-            units = st.selectbox(label="Select units", options=[
-                                 "cm-1", "nm"], index=0)
+            units = st.selectbox(label="Select units", options=["cm-1", "nm"], index=0)
 
             # upload_target_spe_btn = st.form_submit_button("Process spectrum")
         state_settings = st.session_state["cache_dicts"]["spectrum_settings"][
@@ -182,8 +180,7 @@ def load_tabs_target_spectrum():
             use_crop = st.checkbox(
                 key="crop_target_checkbox",
                 label="Use crop",
-                on_change=uploaded_target_spectra_btn(
-                    "uploaded_target_spectra_btn"),
+                on_change=uploaded_target_spectra_btn("uploaded_target_spectra_btn"),
                 value=settings_crop.use_crop,
             )
 
@@ -201,8 +198,7 @@ def load_tabs_target_spectrum():
                     )
                 with col1:
                     min_val = (
-                        settings_crop.crop_min if settings_crop.crop_min else min(
-                            spe.x)
+                        settings_crop.crop_min if settings_crop.crop_min else min(spe.x)
                     )
                     min_val = st.number_input(
                         "Minimum Value:",
@@ -214,8 +210,7 @@ def load_tabs_target_spectrum():
                 with col2:
 
                     max_val = (
-                        settings_crop.crop_max if settings_crop.crop_max else max(
-                            spe.x)
+                        settings_crop.crop_max if settings_crop.crop_max else max(spe.x)
                     )
 
                     max_val = st.number_input(
@@ -234,8 +229,7 @@ def load_tabs_target_spectrum():
             uploaded_target_spectra_btn("uploaded_target_spectra_btn")
             # st.success(f"Range set from {min_val} to {max_val}")
 
-            spe_croped = spe.trim_axes(
-                method="x-axis", boundaries=(min_val, max_val))
+            spe_croped = spe.trim_axes(method="x-axis", boundaries=(min_val, max_val))
 
             settings_crop.use_crop = use_crop
             settings_crop.crop_min = min_val
@@ -279,8 +273,7 @@ def load_tabs_target_spectrum():
             use_normalize = st.checkbox(
                 key="target_normalize_checkbox",
                 label="Use Min-max Normalization",
-                on_change=uploaded_target_spectra_btn(
-                    "uploaded_target_spectra_btn"),
+                on_change=uploaded_target_spectra_btn("uploaded_target_spectra_btn"),
                 value=settings_normalize.use_normalize,
             )
 
@@ -321,8 +314,7 @@ def load_tabs_target_spectrum():
 
                 red_patch = mpatches.Patch(color="blue", label="Neon")
 
-                blue_patch = mpatches.Patch(
-                    color="red", label="Target normalized")
+                blue_patch = mpatches.Patch(color="red", label="Target normalized")
 
                 ax2.legend(handles=[red_patch, blue_patch])
 
@@ -479,14 +471,12 @@ if btn_press == "apply_calib_btn":
         target_spe.plot(ax=axes[2], label="Target", color="blue")
 
         target_units = target_spe.meta["units"]
-        target_calibrated = apply_calibration_x(
-            calmodel, target_spe, target_units)
+        target_calibrated = apply_calibration_x(calmodel, target_spe, target_units)
 
         target_units = "$\mathrm{cm}^{-1}$" if target_units == "cm-1" else target_units
         axes[2].set_xlabel(r"Raman shift " + target_units)
 
-        target_calibrated.plot(
-            ax=axes[2], color="orange", label="Target calibrated")
+        target_calibrated.plot(ax=axes[2], color="orange", label="Target calibrated")
 
         st.pyplot(fig)
 
