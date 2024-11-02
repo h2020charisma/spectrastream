@@ -192,7 +192,8 @@ def load_calibration_spectrum_neon():
         )
 
     if uploaded_neon_spec:
-        neon_spe = process_file_spe([uploaded_neon_spec], label="Neon", units=units)
+        neon_spe = process_file_spe(
+            [uploaded_neon_spec], label="Neon", units=units)
         # meta_dct = target_spe.meta
         st.session_state["cache_dicts"]["spectra_x"]["neon"] = neon_spe
 
@@ -339,7 +340,7 @@ def create_y_calibration_sidebar_expander():
 
         certs_dict = config_certs[str(instrument_wl)]
         certificate_id = st.selectbox(
-            label="Reference material certificate",
+            label="Certificate reference material",
             options=list(certs_dict.keys()),
             index=0,
             on_change=update_x_calibration_btn("btn_save_material_certificate"),
@@ -456,6 +457,7 @@ def process_x_calibration_neon_creation():
             st.session_state["cache_dicts"]["spectra_x_current"]["neon"] = neon_spe
             st.session_state["cache_dicts"]["spectra_x_last"]["neon"] = neon_spe
 
+            spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
             simple_plot_spe(
                 spe=neon_spe, label="Neon", xlabel=r"Raman shift [{}]".format(spe_units)
             )
@@ -471,6 +473,8 @@ def process_x_calibration_neon_creation():
 
             ax = neon_spe.plot(label=label, linestyle="dashed", color="blue")
             ax.set_xlabel(xlabel)
+            ylabel = 'Intensity [ a.u.]'
+            ax.set_ylabel(ylabel)
 
             state_settings = st.session_state["cache_dicts"]["spectrum_settings"][
                 "neon"
@@ -525,7 +529,8 @@ def process_x_calibration_neon_creation():
 
                 with col1:
                     min_val = (
-                        settings_crop.crop_min if settings_crop.crop_min else min(spe.x)
+                        settings_crop.crop_min if settings_crop.crop_min else min(
+                            spe.x)
                     )
                     print("Min val: ", min_val)
 
@@ -542,7 +547,8 @@ def process_x_calibration_neon_creation():
                     )
                 with col2:
                     max_val = (
-                        settings_crop.crop_max if settings_crop.crop_max else max(spe.x)
+                        settings_crop.crop_max if settings_crop.crop_max else max(
+                            spe.x)
                     )
                     # print('Max val: ', max_val)
 
@@ -590,6 +596,9 @@ def process_x_calibration_neon_creation():
 
                 # if use_crop or submit_neon_crop_btn:
                 ax = spe_croped.plot(ax=ax, label="Neon crop", color="red")
+                ax.set_xlabel(xlabel)
+                ylabel = 'Intensity [ a.u.]'
+                ax.set_ylabel(ylabel)
 
             if submit_crop_btn:
                 st.session_state["cache_dicts"]["spectra_x_last"]["neon"] = spe_croped
@@ -612,6 +621,9 @@ def process_x_calibration_neon_creation():
             label, xlabel = "Neon", r"Raman shift [{}]".format(spe_units)
             ax = neon_spe.plot(label=label, linestyle="dashed")
             ax.set_xlabel(xlabel)
+            ylabel = 'Intensity [ a.u.]'
+            ax.set_ylabel(ylabel)
+
             # ax.set_ylabel("Neon", color="blue")
 
             state_settings = st.session_state["cache_dicts"]["spectrum_settings"][
@@ -676,17 +688,23 @@ def process_x_calibration_neon_creation():
 
                 ax2 = ax.twinx()
 
+                # spe_units = neon_normalized_spe.meta["units"]
+                # spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
                 ax2 = neon_normalized_spe.plot(
                     ax=ax2,
                     # label='Neon normalized',
                     color="red",
                     # linestyle='dashed'
                 )
+                ax2.set_xlabel(xlabel)
+                ylabel = 'Intensity [ a.u.]'
+                ax2.set_ylabel(ylabel)
                 # ax2.set_ylabel("Neon normalized", color="red")
 
                 red_patch = mpatches.Patch(color="blue", label="Neon")
 
-                blue_patch = mpatches.Patch(color="red", label="Neon normalized")
+                blue_patch = mpatches.Patch(
+                    color="red", label="Neon normalized")
 
                 ax2.legend(handles=[red_patch, blue_patch])
 
@@ -713,12 +731,17 @@ def process_x_calibration_neon_creation():
             neon_spe = st.session_state["cache_dicts"]["spectra_x"]["neon"]
             spe_units = neon_spe.meta["units"]
 
+            spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
+
             label, xlabel = "Neon", r"Raman shift [{}]".format(spe_units)
 
             fig, axs = plt.subplots(2, 1, sharex=True, figsize=(12, 10))
 
             ax = neon_spe.plot(ax=axs[0], label=label, linestyle="dashed")
             ax.set_xlabel(xlabel)
+            ylabel = 'Intensity [ a.u.]'
+            ax.set_ylabel(ylabel)
+
             # ax.set_ylabel('Neon', color='blue')
 
             state_settings = st.session_state["cache_dicts"]["spectrum_settings"][
@@ -754,7 +777,8 @@ def process_x_calibration_neon_creation():
                         "window_length_neon", settings_peak_find.value_wlen
                     )
 
-                    callback_change_value("width_neon", settings_peak_find.value_width)
+                    callback_change_value(
+                        "width_neon", settings_peak_find.value_width)
                     # callback_change_value(
                     #     "hht_chain_neon", settings_peak_find.value_hht_chain
                     # )
@@ -860,7 +884,8 @@ def process_x_calibration_neon_creation():
                         key="strategy_neon",
                         label="strategy",
                         options=options_strategy,
-                        index=options_strategy.index(settings_peak_find.value_strategy),
+                        index=options_strategy.index(
+                            settings_peak_find.value_strategy),
                         # on_change=update_x_calibration_btn("submitted_std1_btn"),
                     )
 
@@ -879,12 +904,19 @@ def process_x_calibration_neon_creation():
 
                 # fig, ax = plt.subplots()
 
-                neon_peak_candidates.plot(ax=axs[1], fmt=":", label="Neon peaks")
+                # spe_units = neon_normalized_spe.meta["units"]
+                # spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
+
+                neon_peak_candidates.plot(
+                    ax=axs[1], fmt=":", label="Neon peaks")
                 axs[1].set_xlabel(xlabel)
+                ylabel = 'Intensity [ a.u.]'
+                axs[1].set_ylabel(ylabel)
+
                 fig = axs[1].get_figure()
 
                 st.download_button(
-                    "Download Peaks found (JSON)",
+                    "Download Peaks found (CSV)",
                     data=neon_peak_candidates.json(),
                     file_name="neon_peaks_found.json",
                 )
@@ -1042,6 +1074,8 @@ def process_x_calibration_si_creation():
             st.session_state["cache_dicts"]["spectra_x_last"]["si"] = st.session_state[
                 "cache_dicts"
             ]["spectra_x"]["si"]
+
+            spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
             simple_plot_spe(
                 spe=si_spe, label="Si", xlabel=r"Raman shift [{}]".format(spe_units)
             )
@@ -1059,6 +1093,8 @@ def process_x_calibration_si_creation():
             label, xlabel = "Si", r"Raman shift [{}]".format(spe_units)
             ax = si_spe.plot(label=label, linestyle="dashed", color="blue")
             ax.set_xlabel(xlabel)
+            ylabel = 'Intensity [ a.u.]'
+            ax.set_ylabel(ylabel)
 
             state_settings = st.session_state["cache_dicts"]["spectrum_settings"]["si"]
             # print('state_settings in the beginning of crop')
@@ -1177,6 +1213,9 @@ def process_x_calibration_si_creation():
 
             if use_crop or submit_si_crop_btn:
                 ax = spe_croped.plot(ax=ax, label="Si crop", color="red")
+                ax.set_xlabel(xlabel)
+                ylabel = 'Intensity [ a.u.]'
+                ax.set_ylabel(ylabel)
 
             fig = ax.get_figure()
             st.pyplot(fig)
@@ -1200,6 +1239,9 @@ def process_x_calibration_si_creation():
             label, xlabel = "Si", r"Raman shift [{}]".format(spe_units)
             ax = si_spe.plot(label=label, linestyle="dashed")
             ax.set_xlabel(xlabel)
+            ylabel = 'Intensity [ a.u.]'
+            ax.set_ylabel(ylabel)
+
             # ax.set_ylabel("Si", color="blue")
 
             si_spe_current = st.session_state["cache_dicts"]["spectra_x_last"]["si"]
@@ -1264,7 +1306,8 @@ def process_x_calibration_si_creation():
                     baseline_current = settings_baseline.baseline_corr_type
 
                     if set_default_btn:
-                        callback_change_value("select_baseline_si", baseline_current)
+                        callback_change_value(
+                            "select_baseline_si", baseline_current)
 
                     # callback_change_value('min_crop_input', min_val)
                     options = [
@@ -1332,6 +1375,9 @@ def process_x_calibration_si_creation():
                     ax = si_spe_baseline.plot(
                         ax=ax, label="Si baseline correction", color="red"
                     )
+                    ax.set_xlabel(xlabel)
+                    ylabel = 'Intensity [ a.u.]'
+                    ax.set_ylabel(ylabel)
 
                     settings_baseline.use_baseline_corr = use_baseline
                     settings_baseline.baseline_corr_type = baseline_corr
@@ -1376,6 +1422,9 @@ def process_x_calibration_si_creation():
             label, xlabel = "Si", r"Raman shift [{}]".format(spe_units)
             ax = si_spe.plot(label=label, linestyle="dashed")
             ax.set_xlabel(xlabel)
+            ylabel = 'Intensity [ a.u.]'
+            ax.set_ylabel(ylabel)
+
             # ax.set_ylabel("Si", color="blue")
 
             state_settings = st.session_state["cache_dicts"]["spectrum_settings"]["si"]
@@ -1434,12 +1483,17 @@ def process_x_calibration_si_creation():
 
                 ax2 = ax.twinx()
 
+                spe_units = si_normalized_spe.meta["units"]
+                spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
+
                 ax2 = si_normalized_spe.plot(
                     ax=ax2,
                     # label='si normalized',
                     color="red",
                     # linestyle='dashed'
                 )
+                ax2.set_xlabel(xlabel)
+
                 # ax2.set_ylabel("Si normalized", color="red")
 
                 red_patch = mpatches.Patch(color="blue", label="Si")
@@ -1480,6 +1534,9 @@ def process_x_calibration_si_creation():
 
             ax = si_spe.plot(ax=axs[0], label=label, linestyle="dashed")
             ax.set_xlabel(xlabel)
+            ylabel = 'Intensity [ a.u.]'
+            ax.set_ylabel(ylabel)
+
             # ax.set_ylabel('si', color='blue')
 
             state_settings = st.session_state["cache_dicts"]["spectrum_settings"]["si"]
@@ -1513,7 +1570,8 @@ def process_x_calibration_si_creation():
                         "window_length_si", settings_peak_find.value_wlen
                     )
 
-                    callback_change_value("width_si", settings_peak_find.value_width)
+                    callback_change_value(
+                        "width_si", settings_peak_find.value_width)
                     # callback_change_value(
                     #     "hht_chain_si", settings_peak_find.value_hht_chain
                     # )
@@ -1618,7 +1676,8 @@ def process_x_calibration_si_creation():
                         key="strategy_si",
                         label="strategy",
                         options=options_strategy,
-                        index=options_strategy.index(settings_peak_find.value_strategy),
+                        index=options_strategy.index(
+                            settings_peak_find.value_strategy),
                         # on_change=update_x_calibration_btn("submitted_std2_btn"),
                     )
 
@@ -1639,10 +1698,12 @@ def process_x_calibration_si_creation():
 
                 si_peak_candidates.plot(ax=axs[1], fmt=":", label="Si peaks")
                 axs[1].set_xlabel(xlabel)
+                ylabel = 'Intensity [ a.u.]'
+                axs[1].set_ylabel(ylabel)
                 fig = axs[1].get_figure()
 
                 st.download_button(
-                    "Download Peaks found (JSON)",
+                    "Download Peaks found (CSV)",
                     data=si_peak_candidates.json(),
                     file_name="si_peaks_found.json",
                 )
@@ -1735,7 +1796,14 @@ def process_x_calibration_si_creation():
                     # fig, ax = plt.subplots(figsize=(30, 15))
                     fig, ax = plt.subplots()
 
+                    spe_units = si_spe.meta["units"]
+                    spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
+
                     si_spe.plot(ax=ax, fmt=":", label="Si")
+                    ax.set_xlabel(xlabel)
+                    ylabel = 'Intensity [ a.u.]'
+                    ax.set_ylabel(ylabel)
+
                     fitres.plot(
                         ax=ax,
                         peak_candidate_groups=si_peak_candidates,
@@ -1793,7 +1861,8 @@ def upload_y_calibration_ref_spe():
     import time
 
     print(
-        "BEFORE TABS SRM REF, --- time: {} ---------".format(time.strftime("%X %x %Z"))
+        "BEFORE TABS SRM REF, --- time: {} ---------".format(
+            time.strftime("%X %x %Z"))
     )
 
     with load_srm:
@@ -1809,6 +1878,8 @@ def upload_y_calibration_ref_spe():
             st.session_state["cache_dicts"]["spectra_y_last"]["srm_ref"] = (
                 st.session_state["cache_dicts"]["spectra_y"]["srm_ref"]
             )
+
+            spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
             simple_plot_spe(
                 spe=srm_spe,
                 label="Reference spectrum",
@@ -1824,9 +1895,12 @@ def upload_y_calibration_ref_spe():
             srm_spe = st.session_state["cache_dicts"]["spectra_y_last"]["srm_ref"]
             spe_units = srm_spe.meta["units"]
 
-            label, xlabel = "Reference spectrum", r"Raman shift [{}]".format(spe_units)
+            label, xlabel = "Reference spectrum", r"Raman shift [{}]".format(
+                spe_units)
             ax = srm_spe.plot(label=label, linestyle="dashed", color="blue")
             ax.set_xlabel(xlabel)
+            ylabel = 'Intensity [ a.u.]'
+            ax.set_ylabel(ylabel)
 
             state_settings = st.session_state["cache_dicts"]["spectrum_settings"][
                 "srm_ref"
@@ -1883,7 +1957,8 @@ def upload_y_calibration_ref_spe():
 
                 with col1:
                     min_val = (
-                        settings_crop.crop_min if settings_crop.crop_min else min(spe.x)
+                        settings_crop.crop_min if settings_crop.crop_min else min(
+                            spe.x)
                     )
                     print("Min val: ", min_val)
 
@@ -1900,7 +1975,8 @@ def upload_y_calibration_ref_spe():
                     )
                 with col2:
                     max_val = (
-                        settings_crop.crop_max if settings_crop.crop_max else max(spe.x)
+                        settings_crop.crop_max if settings_crop.crop_max else max(
+                            spe.x)
                     )
                     # print('Max val: ', max_val)
 
@@ -1932,6 +2008,8 @@ def upload_y_calibration_ref_spe():
                 spe_croped = spe.trim_axes(
                     method="x-axis", boundaries=(min_val, max_val)
                 )
+            else:
+                spe_croped = spe
 
             if use_crop:
                 # if not submit_neon_crop_btn:
@@ -1953,6 +2031,12 @@ def upload_y_calibration_ref_spe():
             if use_crop or submit_neon_crop_btn:
                 ax = spe_croped.plot(ax=ax, label="Ref crop", color="red")
 
+            spe_units = spe_croped.meta["units"]
+            spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
+            xlabel = r"Raman shift [{}]".format(spe_units)
+
+            ax.set_xlabel(xlabel)
+
             fig = ax.get_figure()
             st.pyplot(fig)
 
@@ -1961,7 +2045,7 @@ def upload_y_calibration_ref_spe():
             ] = state_settings
 
     with smooth_srm:
-        print("IN NORMALIZE")
+        print("IN SMOOTH")
 
         if "srm_ref" in st.session_state["cache_dicts"]["spectra_y"]:
             assert "srm_ref" in st.session_state["cache_dicts"]["spectra_y_last"]
@@ -1969,9 +2053,13 @@ def upload_y_calibration_ref_spe():
             srm_spe = st.session_state["cache_dicts"]["spectra_y"]["srm_ref"]
             spe_units = srm_spe.meta["units"]
 
-            label, xlabel = "Reference spectrum", r"Raman shift [{}]".format(spe_units)
+            label, xlabel = "Reference spectrum", r"Raman shift [{}]".format(
+                spe_units)
             ax = srm_spe.plot(label=label, linestyle="dashed", color="blue")
             ax.set_xlabel(xlabel)
+            ylabel = 'Intensity [ a.u.]'
+            ax.set_ylabel(ylabel)
+
             # ax.set_ylabel("Si", color="blue")
 
             state_settings = st.session_state["cache_dicts"]["spectrum_settings"][
@@ -2042,7 +2130,8 @@ def upload_y_calibration_ref_spe():
                     index_method = method_options.index(settings_smooth.method)
 
                     if set_default_btn:
-                        index_method = method_options.index(settings_smooth.method)
+                        index_method = method_options.index(
+                            settings_smooth.method)
                         callback_change_value(
                             "select_box_srm_method", default_state_srm_ref.smooth.method
                         )
@@ -2098,11 +2187,23 @@ def upload_y_calibration_ref_spe():
                     color="red",
                 )
 
-                red_patch = mpatches.Patch(color="blue", label="Reference spectrum")
+                spe_units = spe_smooth.meta["units"]
+                spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
+                xlabel = r"Raman shift [{}]".format(spe_units)
+
+                ax.set_xlabel(xlabel)
+
+                red_patch = mpatches.Patch(
+                    color="blue", label="Reference spectrum")
 
                 blue_patch = mpatches.Patch(color="red", label="Ref smooth")
 
                 ax2.legend(handles=[red_patch, blue_patch])
+
+                ax2.spines[['right']].set_visible(False)
+                ax2.set_yticks([])
+                # !!!! NB! ax2.set_yticklabels
+                print('set ax invisible right')
 
                 fig = ax2.get_figure()
                 st.pyplot(fig)
@@ -2279,12 +2380,16 @@ elif x_calib_btn in ["btn_derive_x_calibration_curve", "btn_lazer_zeroing"]:
     if x_calib_btn == "btn_derive_x_calibration_curve":
         fig, ax = plt.subplots(1, 1, sharex=False, figsize=(12, 10))
 
-        calmodel.plot(ax=ax)
-
+        ax = calmodel.plot(ax=ax)
+        # print(res)
         red_patch = mpatches.Patch(color="blue", label="Neon peaks")
         blue_patch = mpatches.Patch(color="red", label="Neon reference")
 
         ax.legend(handles=[red_patch, blue_patch])
+        # ax.yaxis.set_tick_params(labelright=False)
+        # ax.set_yticks([])
+        ylabel = 'Intensity [ a.u.]'
+        ax.set_ylabel(ylabel)
 
         st.pyplot(fig)
 
@@ -2366,7 +2471,7 @@ elif x_calib_btn in ["btn_derive_x_calibration_curve", "btn_lazer_zeroing"]:
 
         # spe_si = st.session_state["cache_dicts"]["spectra_x_current"]["si"]
 
-        fig, axes = plt.subplots(2, 1, sharex=False, figsize=(12, 10))
+        fig, axes = plt.subplots(2, 1, sharex=False, figsize=(16, 18))
 
         calmodel.plot(ax=axes[0])
 
@@ -2386,6 +2491,11 @@ elif x_calib_btn in ["btn_derive_x_calibration_curve", "btn_lazer_zeroing"]:
         axes[1].legend()
         axes[1].set_xlabel(r"Raman shift " + si_units)
         axes[1].set_xlim(520.45 - 50, 520.45 + 50)
+        axes[0].spines[['right']].set_visible(False)
+
+        ylabel = 'Intensity [ a.u.]'
+        axes[0].set_ylabel(ylabel)
+        axes[1].set_ylabel(ylabel)
 
         st.pyplot(fig)
 
@@ -2407,7 +2517,8 @@ elif x_calib_btn == "btn_save_x_calibration":
         path = str(rpath / "data" / xcalibration_filename)
         calmodel.save(path)
 
-        st.write("Saved X-calibration model in ", "./data/" + xcalibration_filename)
+        st.write("Saved X-calibration model in ",
+                 "./data/" + xcalibration_filename)
 
 
 elif x_calib_btn == "btn_save_material_certificate":
@@ -2418,6 +2529,8 @@ elif x_calib_btn == "btn_save_material_certificate":
     # st.write(certificate_data)
     # st.write(type(certificate_data))
     ax = certificate_data.plot()
+    units = "$\mathrm{cm}^{-1}$"
+    ax.set_xlabel(r"Raman shift " + units)
     fig = ax.get_figure()
     st.pyplot(fig)
 
@@ -2472,6 +2585,10 @@ elif x_calib_btn == "btn_derive_y_calibration":
 
     ax = spe_srm.plot(ax=ax, label="Reference spectrum", color="red")
 
+    # spe_units = spe_srm.meta["units"]
+    # spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
+    # ax.set_xlabel
+
     ax.legend(loc="upper left")
 
     certificate_data: YCalibrationCertificate = st.session_state["cache_dicts"][
@@ -2479,14 +2596,21 @@ elif x_calib_btn == "btn_derive_y_calibration":
     ]["material_certificate"]
 
     ax_twin = ax.twinx()
-    ax = certificate_data.plot(
+    ax_twin = certificate_data.plot(
         # label="Theoretical spectrum",
         color="green",
         ax=ax_twin,
     )
     ax_twin.legend(loc="upper right")
 
-    fig = ax.get_figure()
+    spe_units = spe_srm.meta["units"]
+    spe_units = "$\mathrm{cm}^{-1}$" if spe_units == "cm-1" else spe_units
+    xlabel = r"Raman shift [{}]".format(spe_units)
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Intensity [a.u.]")
+
+    fig = ax_twin.get_figure()
     st.pyplot(fig)
 
     # st.write("Y Calibration component derived")

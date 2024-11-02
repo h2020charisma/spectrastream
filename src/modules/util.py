@@ -13,7 +13,7 @@ import streamlit as st
 from streamlit.runtime.uploaded_file_manager import DeletedFile, UploadedFile
 
 
-def simple_plot_spe(spe, label, xlabel):
+def simple_plot_spe(spe, label, xlabel, ylabel='Intensity [a.u.]'):
     # ax = spe.plot(label="Target spe")
     # fig = ax.get_figure()
     # st.pyplot(fig)
@@ -21,6 +21,8 @@ def simple_plot_spe(spe, label, xlabel):
 
     ax = spe.plot(label=label)
     ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
     fig = ax.get_figure()
     # fig.set_size_inches(30, 15)
     st.pyplot(fig)
@@ -62,7 +64,8 @@ def process_file_spe(uploaded_files: list[UploadedFile], label=None, units="nm")
                 method="x-axis", boundaries=(100.0, max(spe.y)))
 
             meta_dct = spe.meta.dict()["__root__"]
-            meta_dct["xlabel"] = "Raman shift [cm¯¹]"
+            # meta_dct["xlabel"] = "Raman shift [cm¯¹]"
+            meta_dct["xlabel"] = "Raman shift [$\mathrm{cm}^{-1}$]"
             meta_dct["Original file"] = uploaded_file.name
             meta_dct["Temporary file"] = f.name
             meta_dct["step"] = "Raw spe"
