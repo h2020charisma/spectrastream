@@ -17,7 +17,7 @@ from modules.util import (
     process_file_spe,
 )
 
-from ramanchada2.protocols.calibration import CalibrationModel
+from ramanchada2.protocols.calibration.calibration_model import CalibrationModel
 
 # with st.sidebar:
 

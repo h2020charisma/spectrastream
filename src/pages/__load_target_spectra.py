@@ -17,7 +17,7 @@ from modules.util import (
     update_session_state,
 )
 
-from ramanchada2.protocols.calibration import CalibrationModel
+from ramanchada2.protocols.calibration.calibration_model import CalibrationModel
 
 navbar()
 

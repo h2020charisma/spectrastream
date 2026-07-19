@@ -8,7 +8,6 @@ from typing import Set, TypedDict
 import pandas as pd
 
 import streamlit as st
-import streamlit_pydantic as sp
 from front_end.htmlTemplates import css
 
 from modules.navigation_bar import navbar
@@ -21,16 +20,11 @@ from modules.util import (
     update_session_state,
 )
 
-from pydantic import BaseModel, Field, parse_obj_as, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
-from ramanchada2.protocols.calibration import (
-    CalibrationModel,
-    CertificatesDict,
-    LazerZeroingComponent,
-    XCalibrationComponent,
-    YCalibrationCertificate,
-    YCalibrationComponent,
-)
+from ramanchada2.protocols.calibration.calibration_model import CalibrationModel
+from ramanchada2.protocols.calibration.xcalibration import LazerZeroingComponent, XCalibrationComponent
+from ramanchada2.protocols.calibration.ycalibration import YCalibrationCertificate, CertificatesDict, YCalibrationComponent
 
 
 # class InstrumentsMandatory(BaseModel):
@@ -146,9 +140,38 @@ st.title("Load instrument metadata")
 #     print('end delete.....')
 
 
-data = sp.pydantic_input(key="my_form", model=InstrumentSettings)
-if data:
-    st.session_state["cache_dicts"]["instrument_settings"]["settings"] = dict(data)
+with st.form(key="instrument_settings_form"):
+    make_and_model = st.text_input(
+        "Make and model of the instrument",
+        value=settings["make_and_model_of_the_instrument"] or "",
+    )
+    serial_number = st.text_input(
+        "Serial number of the instrument",
+        value=settings["serial_number_of_the_instrument"] or "",
+    )
+    laser_wavelength = st.number_input(
+        "Laser wavelength (nm)",
+        value=int(settings["laser_wavelength"] or 532),
+        step=1,
+    )
+    device_type = st.text_input("Device type", value=settings["device_type"] or "")
+    numerical_aperture = st.text_input(
+        "Numerical aperture", value=settings["numerical_aperture"] or ""
+    )
+    grating = st.text_input("Grating", value=settings["grating"] or "")
+    slit = st.text_input("Slit", value=settings["slit"] or "")
+    submitted = st.form_submit_button("Update")
+
+if submitted:
+    st.session_state["cache_dicts"]["instrument_settings"]["settings"] = {
+        "make_and_model_of_the_instrument": make_and_model or None,
+        "serial_number_of_the_instrument": serial_number,
+        "laser_wavelength": laser_wavelength,
+        "device_type": device_type or None,
+        "numerical_aperture": numerical_aperture or None,
+        "grating": grating or None,
+        "slit": slit or None,
+    }
 # if True:
 #     print('Delete AFTER ')
 #     keys = [k for k in st.session_state.keys() if 'my_form' in k]
