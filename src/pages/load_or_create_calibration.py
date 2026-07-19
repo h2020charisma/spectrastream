@@ -40,6 +40,7 @@ from ramanchada2.protocols.calibration.calibration_model import CalibrationModel
 from ramanchada2.protocols.calibration.xcalibration import LazerZeroingComponent, XCalibrationComponent
 from ramanchada2.protocols.calibration.ycalibration import YCalibrationCertificate, CertificatesDict, YCalibrationComponent
 from ramanchada2.spectrum.baseline.baseline_rc1 import baseline_als, baseline_snip
+import ramanchada2.misc.constants as rc2const
 
 # warnings.showwarning("ignore")
 warnings.filterwarnings("ignore")
@@ -2286,7 +2287,7 @@ elif x_calib_btn in ["btn_derive_x_calibration_curve", "btn_lazer_zeroing"]:
 
     from ramanchada2.spectrum import Spectrum
 
-    ref_spe = calmodel.neon_wl[int(laser_wl)]
+    ref_spe = rc2const.NEON_WL[laser_wl]
 
     calibration_component_neon: XCalibrationComponent = calmodel.derive_model_curve(
         spe=neon_spe,
