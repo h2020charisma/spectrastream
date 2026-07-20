@@ -1,4 +1,5 @@
 from collections import defaultdict
+
 import pandas as pd
 from streamlit.testing.v1 import AppTest
 
@@ -31,17 +32,20 @@ def test_app():
     at.run(timeout=30)
     assert not at.exception
 
+
 def test_load_or_create_calibration():
     at = AppTest.from_file("src/pages/load_or_create_calibration.py")
     _init_session_state(at)
     at.run(timeout=30)
     assert not at.exception
 
+
 def test_apply_calibration():
     at = AppTest.from_file("src/pages/apply_calibration.py")
     _init_session_state(at)
     at.run(timeout=30)
     assert not at.exception
+
 
 def test_load_instrument_settings():
     at = AppTest.from_file("src/pages/load_instrument_settings.py")

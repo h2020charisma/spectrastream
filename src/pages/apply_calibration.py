@@ -1,27 +1,18 @@
 #!/usr/bin/env python3
-from collections import defaultdict
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
-import pandas as pd
-
 import streamlit as st
+from ramanchada2.io.output.write_csv import write_csv as io_write_csv
+
 from front_end.htmlTemplates import css
-
-from modules.models import default_state_target, StateCrop, StateNormalize
-
+from modules.models import StateNormalize, default_state_target
 from modules.navigation_bar import navbar
 from modules.util import (
     apply_calibration_x,
-    load_calibration_file,
-    plot_original_x_calib_spe,
     process_file_spe,
     simple_plot_spe,
-    update_session_state,
 )
-from ramanchada2.io.output.write_csv import write_csv as io_write_csv
-
-from ramanchada2.protocols.calibration.calibration_model import CalibrationModel
 
 navbar()
 
@@ -38,7 +29,6 @@ def uploaded_target_spectra_btn(value):
 
 
 with st.sidebar:
-
     # st.sidebar.image("./src/front_end/images/logo_charisma.jpg")
     # st.header("AI data extractor")
     target_spe_choices = ["Search target spectrum", "Load target spectrum"]
@@ -55,9 +45,9 @@ with st.sidebar:
         st.session_state["cache_strings"]["target_spe_choice"] = set_spe_choice
 
     if "target_spe_choice" not in st.session_state["cache_strings"]:
-        st.session_state["cache_strings"][
-            "target_spe_choice"
-        ] = "Search target spectrum"
+        st.session_state["cache_strings"]["target_spe_choice"] = (
+            "Search target spectrum"
+        )
 
     target_spe_choice_ = st.session_state["cache_strings"]["target_spe_choice"]
 
@@ -98,18 +88,21 @@ def load_tabs_target_spectrum():
     )
 
     if "target_spe" not in st.session_state["cache_dicts"]["spectrum_settings"]:
-        #     state_settings = st.session_state["cache_dicts"]["spectrum_settings"]["target_spe"]
+        # state_settings = st.session_state["cache_dicts"]["spectrum_settings"][
+        #     "target_spe"
+        # ]
         # else:
         # settings = default_state_target
         # settings.normalize.use_normalize = False
-        st.session_state["cache_dicts"]["spectrum_settings"][
-            "target_spe"
-        ] = default_state_target
+        st.session_state["cache_dicts"]["spectrum_settings"]["target_spe"] = (
+            default_state_target
+        )
 
-    # state_settings = st.session_state["cache_dicts"]["spectrum_settings"]["target_spe"]
+    # state_settings = st.session_state["cache_dicts"]["spectrum_settings"][
+    #     "target_spe"
+    # ]
 
     with load_tt:
-
         # with st.form("Load target"):
         col1, col2 = st.columns(2)
 
@@ -131,13 +124,13 @@ def load_tabs_target_spectrum():
                 [uploaded_target_spec], label="Target", units=units
             )
 
-            st.session_state["cache_dicts"]["page01_load_spe"][
-                "target_spe"
-            ] = target_spe
+            st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"] = (
+                target_spe
+            )
 
-            st.session_state["cache_dicts"]["page01_load_spe"][
-                "target_spe_current"
-            ] = target_spe
+            st.session_state["cache_dicts"]["page01_load_spe"]["target_spe_current"] = (
+                target_spe
+            )
 
             target_units = target_spe.meta["units"]
 
@@ -164,7 +157,6 @@ def load_tabs_target_spectrum():
 
     with crop_tt:
         if "target_spe_current" in st.session_state["cache_dicts"]["page01_load_spe"]:
-
             # spe = st.session_state["cache_dicts"]["page01_load_spe"][
             #     "target_spe_current"
             # ]
@@ -186,7 +178,7 @@ def load_tabs_target_spectrum():
 
             # Create a form for the input fields and submit button
             with st.form(key="target_crop_form"):
-                # Create three columns: two for input fields and one for the submit button
+                # Create two input columns and one submit-button column.
                 col0, col1, col2 = st.columns([0.5, 1, 1])
 
                 with col0:
@@ -208,7 +200,6 @@ def load_tabs_target_spectrum():
                         # disabled=not use_crop
                     )
                 with col2:
-
                     max_val = (
                         settings_crop.crop_max if settings_crop.crop_max else max(spe.x)
                     )
@@ -249,13 +240,12 @@ def load_tabs_target_spectrum():
             fig = ax.get_figure()
             st.pyplot(fig)
 
-            st.session_state["cache_dicts"]["spectrum_settings"][
-                "target_spe"
-            ] = state_settings
+            st.session_state["cache_dicts"]["spectrum_settings"]["target_spe"] = (
+                state_settings
+            )
 
     with normalize_tt:
         if "target_spe_current" in st.session_state["cache_dicts"]["page01_load_spe"]:
-
             spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"]
 
             spe_units = spe.meta["units"]
@@ -284,7 +274,6 @@ def load_tabs_target_spectrum():
             # )
 
             if use_normalize:
-
                 # spe_current = st.session_state["cache_dicts"]["spectra_x_current"][
                 #     "neon"
                 # ]
@@ -322,29 +311,25 @@ def load_tabs_target_spectrum():
                 st.pyplot(fig)
 
             else:
-
                 fig = ax.get_figure()
                 st.pyplot(fig)
 
-            st.session_state["cache_dicts"]["spectrum_settings"][
-                "target_spe"
-            ] = state_settings
+            st.session_state["cache_dicts"]["spectrum_settings"]["target_spe"] = (
+                state_settings
+            )
 
 
 with st.sidebar:
-
     target_spe_btn = st.button("Target spectrum")
 
     if target_spe_btn:
-
-        st.session_state["cache_dicts"]["page03_apply_calib"][
-            "btn_press"
-        ] = "target_spe_btn"
+        st.session_state["cache_dicts"]["page03_apply_calib"]["btn_press"] = (
+            "target_spe_btn"
+        )
 
     # apply_x_calib_btn = st.button("Apply X-Calibration")
 
     with st.form("apply_calibration"):
-
         x_calib = st.checkbox(label="X-calibration")
 
         y_calib = st.checkbox(label="Y-calibration")
@@ -362,7 +347,6 @@ with st.sidebar:
                 st.error("Target spectrum not loaded")
 
             if x_calib:
-
                 assert (
                     "xcalibration_model"
                     in st.session_state["cache_dicts"]["x_calibration"]
@@ -371,7 +355,6 @@ with st.sidebar:
             st.session_state["cache_bools"]["x_calib"] = x_calib
 
             if y_calib:
-
                 if (
                     "ycalibration_model"
                     not in st.session_state["cache_dicts"]["y_calibration"]
@@ -380,9 +363,9 @@ with st.sidebar:
 
             st.session_state["cache_bools"]["y_calib"] = y_calib
 
-            st.session_state["cache_dicts"]["page03_apply_calib"][
-                "btn_press"
-            ] = "apply_calib_btn"
+            st.session_state["cache_dicts"]["page03_apply_calib"]["btn_press"] = (
+                "apply_calib_btn"
+            )
 
     # if apply_x_calib_btn:
     #     if (
@@ -391,7 +374,10 @@ with st.sidebar:
     #     ):
     #         st.error("Target spectrum not loaded")
 
-    #     assert "xcalibration_model" in st.session_state["cache_dicts"]["x_calibration"]
+    #     assert (
+    #         "xcalibration_model"
+    #         in st.session_state["cache_dicts"]["x_calibration"]
+    #     )
     #     st.session_state["cache_dicts"]["page03_apply_calib"][
     #         "btn_press"
     #     ] = "apply_x_calib_btn"
@@ -405,7 +391,10 @@ with st.sidebar:
     #     ):
     #         st.error("Target spectrum not loaded")
 
-    #     assert "ycalibration_model" in st.session_state["cache_dicts"]["y_calibration"]
+    #     assert (
+    #         "ycalibration_model"
+    #         in st.session_state["cache_dicts"]["y_calibration"]
+    #     )
     #     st.session_state["cache_dicts"]["page03_apply_calib"][
     #         "btn_press"
     #     ] = "apply_y_calib_btn"
@@ -418,7 +407,6 @@ if "btn_press" in st.session_state["cache_dicts"]["page03_apply_calib"]:
 # target_spe = st.session_state["cache_dicts"]["page01_load_spe"]["target_spe"]
 
 if btn_press == "apply_calib_btn":
-
     x_calib = st.session_state["cache_bools"]["x_calib"]
     y_calib = st.session_state["cache_bools"]["y_calib"]
 
@@ -488,7 +476,6 @@ if btn_press == "apply_calib_btn":
         target_spe = target_calibrated
 
     if y_calib:
-
         ycalmodel = st.session_state["cache_dicts"]["y_calibration"][
             "ycalibration_model"
         ]
@@ -516,5 +503,4 @@ if btn_press == "apply_calib_btn":
         )
 
 elif btn_press == "target_spe_btn":
-
     load_tabs_target_spectrum()

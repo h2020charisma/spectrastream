@@ -10,7 +10,6 @@ repos:
       - id: check-docstring-first
       - id: check-json
       - id: check-merge-conflict
-      - id: debug-statements
       - id: detect-private-key
       - id: end-of-file-fixer
       - id: name-tests-test
@@ -18,21 +17,18 @@ repos:
       - id: pretty-format-json
         args: [--autofix, --no-ensure-ascii]
       - id: trailing-whitespace
-  - repo: https://github.com/facebook/usort
-    rev: v1.0.8
+  - repo: local
     hooks:
-      - id: usort
-  - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 24.4.2
-    hooks:
-      - id: black
-        args: [--preview]
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.0.0
-    hooks:
-      - id: flake8
-        additional_dependencies:
-          - flake8-bugbear == 24.4.26
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --no-sync ruff check --fix
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --no-sync ruff format
+        language: system
+        types_or: [python, pyi]
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.35.1
     hooks:

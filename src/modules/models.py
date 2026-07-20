@@ -1,20 +1,6 @@
-import os
-import pickle
-import tempfile
-
-from collections import defaultdict
-from pathlib import Path
-from tempfile import NamedTemporaryFile
-
-import matplotlib.pyplot as plt
-import pandas as pd
-import ramanchada2 as rc2
-import streamlit as st
-from streamlit.runtime.uploaded_file_manager import DeletedFile, UploadedFile
-
+from typing import Literal
 
 from pydantic import BaseModel
-from typing import Literal
 
 
 class StateCrop(BaseModel):
@@ -25,6 +11,7 @@ class StateCrop(BaseModel):
 
 class StateNormalize(BaseModel):
     use_normalize: bool = False
+
 
 # class StateBaseline(BaseModel):
 #     use_baseline: bool = False
@@ -37,8 +24,9 @@ class SNIPBaselineArgs(BaseModel):
 
 class StateSmooth(BaseModel):
     use_smooth: bool = False
-    method: Literal['savgol', 'wiener', 'median',
-                    'gauss', 'lowess', 'boxcar'] = 'savgol'
+    method: Literal["savgol", "wiener", "median", "gauss", "lowess", "boxcar"] = (
+        "savgol"
+    )
 
     savgol_window_length: int = 5
     savgol_polyorder: int = 3
@@ -53,7 +41,7 @@ class ALSBaselineArgs(BaseModel):
 
 class StateBaselineCorrection(BaseModel):
     use_baseline_corr: bool = False
-    baseline_corr_type: Literal['AST', 'SNIP', 'MOVING_MIN'] = 'SNIP'
+    baseline_corr_type: Literal["AST", "SNIP", "MOVING_MIN"] = "SNIP"
     args: SNIPBaselineArgs | ALSBaselineArgs = SNIPBaselineArgs()
     # baseline_corr_min: float | None = None
     # baseline_corr_max: float | None = None
@@ -68,6 +56,7 @@ class StatePeakFind(BaseModel):
     # value_sharpening: str | None = Neone  # None | hhte
     value_strategy: str | None = None  # only string
 
+
 # class StateSmooth()
 
 
@@ -79,7 +68,6 @@ class StateSpectrum(BaseModel):
 
 
 class StateSpectrumSRMRef(BaseModel):
-
     crop: StateCrop = StateCrop()
     smooth: StateSmooth = StateSmooth()
 
@@ -87,20 +75,20 @@ class StateSpectrumSRMRef(BaseModel):
 default_state_srm_ref = StateSpectrumSRMRef()
 
 
-default_peak_find_neon = StatePeakFind(value_strategy='topo')
+default_peak_find_neon = StatePeakFind(value_strategy="topo")
 
-default_state_neon = StateSpectrum(crop=StateCrop(),
-                                   normalize=StateNormalize(),
-                                   peak_find=default_peak_find_neon)
+default_state_neon = StateSpectrum(
+    crop=StateCrop(), normalize=StateNormalize(), peak_find=default_peak_find_neon
+)
 
 
-default_peak_find_si = StatePeakFind(value_strategy='topo')
+default_peak_find_si = StatePeakFind(value_strategy="topo")
 
-default_state_si = StateSpectrum(crop=StateCrop(crop_min=520.45-50, crop_max=520.45+50),
-                                 normalize=StateNormalize(),
-                                 baseline_corr=StateBaselineCorrection(
-                                     baseline_corr_type='SNIP'),
-                                 peak_find=default_peak_find_si)
+default_state_si = StateSpectrum(
+    crop=StateCrop(crop_min=520.45 - 50, crop_max=520.45 + 50),
+    normalize=StateNormalize(),
+    baseline_corr=StateBaselineCorrection(baseline_corr_type="SNIP"),
+    peak_find=default_peak_find_si,
+)
 
-default_state_target = StateSpectrum(crop=StateCrop(),
-                                     normalize=StateNormalize())
+default_state_target = StateSpectrum(crop=StateCrop(), normalize=StateNormalize())

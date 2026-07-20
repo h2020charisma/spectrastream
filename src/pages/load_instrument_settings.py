@@ -1,31 +1,10 @@
 #!/usr/bin/env python3
 from collections import defaultdict
-from copy import deepcopy
-from enum import Enum
-
-from typing import Set, TypedDict
-
-import pandas as pd
 
 import streamlit as st
-from front_end.htmlTemplates import css
+from pydantic import BaseModel, Field
 
 from modules.navigation_bar import navbar
-
-from modules.util import (
-    init_streamlit_cache,
-    plot_original_x_calib_spe,
-    process_file_spe,
-    simple_plot_spe,
-    update_session_state,
-)
-
-from pydantic import BaseModel, Field, ValidationError
-
-from ramanchada2.protocols.calibration.calibration_model import CalibrationModel
-from ramanchada2.protocols.calibration.xcalibration import LazerZeroingComponent, XCalibrationComponent
-from ramanchada2.protocols.calibration.ycalibration import YCalibrationCertificate, CertificatesDict, YCalibrationComponent
-
 
 # class InstrumentsMandatory(BaseModel):
 #     laser_wavelength: int = 532
