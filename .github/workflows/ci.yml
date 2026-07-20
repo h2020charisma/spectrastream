@@ -5,219 +5,304 @@ on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - main
-      - develop
-      - x-calib-nopeak-find
+    tags:
+      - 'v*.*.*'
   pull_request:
     branches:
       - main
-      - develop
-    tags:
-      - v*.*.*
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
-  POETRY_VERSION: 1.8.3
+  UV_VERSION: 0.11.29
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-
+  DOCKER_BUILD_RECORD_UPLOAD: false
+  DOCKER_METADATA_LABELS: |
+    org.opencontainers.image.description=Web-based spectra harmonization tool
+    org.opencontainers.image.licenses=MIT
+    org.opencontainers.image.title=spectrastream
+    org.opencontainers.image.url=https://github.com/h2020charisma/spectrastream/blob/main/README.md
+    org.opencontainers.image.vendor=IDEAconsult
 
 jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: '3.12'
+          enable-cache: false
+
+      - name: Install quality tooling
+        run: uv sync --locked --only-group dev
+
+      - name: Determine validation range
+        id: range
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
+        run: |
+          base_sha="${PR_BASE_SHA:-${PUSH_BASE_SHA}}"
+          if [[ -z "${base_sha}" || "${base_sha}" =~ ^0+$ ]]; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+          echo "base=${base_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run pre-commit on changed files
+        env:
+          BASE_SHA: ${{ steps.range.outputs.base }}
+          SKIP: no-commit-to-branch
+        run: uv run --no-sync pre-commit run --from-ref "${BASE_SHA}" --to-ref HEAD --show-diff-on-failure
 
   test:
-
+    name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         python-version:
-          - '3.9'
           - '3.10'
           - '3.11'
           - '3.12'
-
     steps:
-
-      - name: Checkout the repository
-        uses: actions/checkout@v4.1.7
-
-      - name: Setup Python
-        uses: actions/setup-python@v5.1.0
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
+          persist-credentials: false
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
+        with:
+          version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
-
-      - name: Get the precise Python version
-        run: echo "PYTHON_ID=$( python -VV | sha256sum | awk '{ print $1 }' )" >> "$GITHUB_ENV"
-
-      - name: Load the cached Poetry installation
-        id: cached-poetry
-        uses: actions/cache@v4.0.2
-        with:
-          path: ~/.local
-          key: poetry-${{ env.POETRY_VERSION }}-py_${{ env.PYTHON_ID}}-0
-
-      - name: Install Poetry
-        if: steps.cached-poetry.outputs.cache-hit != 'true'
-        uses: snok/install-poetry@v1.3.4
-        with:
-          version: ${{ env.POETRY_VERSION }}
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load the cached dependencies
-        id: cached-deps
-        uses: actions/cache@v4.0.2
-        with:
-          path: .venv
-          key: py${{ matrix.python-version }}-deps-${{ hashFiles('**/poetry.lock') }}
+          enable-cache: false
 
       - name: Install dependencies
-        if: steps.cached-deps.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction
-
-      - name: Run pre-commit
-        run: >-
-          if [[ $GITHUB_REF == refs/heads/main ]]; then
-            SKIP=no-commit-to-branch poetry run pre-commit run --all-files
-          elif [[ $GITHUB_REF == refs/heads/x-calib-nopeak-find ]]; then
-            echo 'Skipping pre-commit.'
-          else
-            poetry run pre-commit run --all-files
-          fi
+        run: uv sync --locked
 
       - name: Run tests
         env:
           COVERAGE_FILE: .coverage.${{ matrix.python-version }}
-        run: >-
-          if [[ $GITHUB_REF == refs/heads/x-calib-nopeak-find ]]; then
-            echo 'Skipping tests.'
-          else
-            poetry run pytest --cov
-          fi
+        run: uv run --no-sync pytest --cov
 
-      - name: Store the coverage report
-        uses: actions/upload-artifact@v4.3.3
-        if: github.ref != 'refs/heads/x-calib-nopeak-find'
+      - name: Store coverage data
+        if: >-
+          github.event_name == 'pull_request' ||
+          (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: coverage-${{ matrix.python-version }}
           path: .coverage.${{ matrix.python-version }}
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
 
   coverage:
-
+    name: Coverage
     runs-on: ubuntu-latest
-    needs: test
-    if: github.ref != 'refs/heads/x-calib-nopeak-find'
+    needs:
+      - test
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    timeout-minutes: 15
     permissions:
-      pull-requests: write
       contents: write
-
+      pull-requests: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
 
-      - name: Checkout the repository
-        uses: actions/checkout@v4.1.6
-
-      - name: Retrieve the coverage reports
-        id: download
-        uses: actions/download-artifact@v4.1.7
+      - name: Retrieve coverage data
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           pattern: coverage-*
           merge-multiple: true
 
-      - name: Process the coverage reports
-        id: coverage_processing
-        uses: py-cov-action/python-coverage-comment-action@v3.25
+      - name: Process coverage data
+        id: coverage
+        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f  # v4.1
         with:
-          COVERAGE_DATA_BRANCH: 'COVERAGE-REPORT'
+          ACTIVITY: ${{ github.event_name == 'push' && 'save_coverage_data_files' || 'process_pr' }}
+          COVERAGE_DATA_BRANCH: COVERAGE-REPORT
           GITHUB_TOKEN: ${{ github.token }}
           MERGE_COVERAGE_FILES: true
 
-      - name: Store the pull request coverage comment for later posting
-        if: steps.coverage_processing.outputs.COMMENT_FILE_WRITTEN == 'true'
-        uses: actions/upload-artifact@v4.3.3
+      - name: Store pull request coverage comment
+        if: steps.coverage.outputs.comment_file_written == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: python-coverage-comment-action
           path: python-coverage-comment-action.txt
+          if-no-files-found: error
+          retention-days: 7
 
-  build:
-
+  docker-pr-build:
+    name: Build fork PR image
     runs-on: ubuntu-latest
-    needs: test
+    needs:
+      - quality
+      - test
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.event.pull_request.head.repo.full_name != github.repository ||
+      github.event.pull_request.user.login == 'dependabot[bot]')
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4.2.0
+
+      - name: Build Docker image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        with:
+          cache-from: type=gha,scope=container-pr-${{ github.event.pull_request.number }}
+          cache-to: type=gha,mode=max,scope=container-pr-${{ github.event.pull_request.number }}
+          context: .
+          provenance: false
+          push: false
+          sbom: false
+
+  docker-pr-preview:
+    name: Publish PR preview image
+    runs-on: ubuntu-latest
+    needs:
+      - quality
+      - test
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
-      # This is used to complete the identity challenge
-      # with sigstore/fulcio when running outside of PRs.
-      id-token: write
-
     steps:
-
       - name: Checkout repository
-        uses: actions/checkout@v4.1.7
-
-      # Install the cosign tool except on PR
-      # https://github.com/sigstore/cosign-installer
-      - name: Install cosign
-        if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@v3.5.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
-          cosign-release: 'v2.2.4'
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
 
-      # Workaround: https://github.com/docker/build-push-action/issues/461
-      - name: Setup Docker buildx
-        uses: docker/setup-buildx-action@v3.3.0
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4.2.0
 
-      # Login against a Docker registry except on PR
-      # https://github.com/docker/login-action
-      - name: Log into registry ${{ env.REGISTRY }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3.2.0
+      - name: Log into GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4.4.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Extract metadata (tags, labels) for Docker
-      # https://github.com/docker/metadata-action
       - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5.5.1
+        id: metadata
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
+        env:
+          DOCKER_METADATA_PR_HEAD_SHA: true
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          labels: |
-            org.opencontainers.image.description=Web-based spectra harmonization tool
-            org.opencontainers.image.licenses=MIT
-            org.opencontainers.image.title=spectrastream
-            org.opencontainers.image.url=https://github.com/h2020charisma/spectrastream/blob/main/README.md
-            org.opencontainers.image.vendor=IDEAconsult
+          labels: ${{ env.DOCKER_METADATA_LABELS }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/x-calib-nopeak-find' }}
-            type=raw,value=stable,enable=${{ github.ref == 'refs/heads/main' }}
-            type=ref,event=branch
-            type=ref,event=tag
-            type=ref,event=pr
+            type=raw,value=pr-${{ github.event.pull_request.number }}
+            type=raw,value=pr-${{ github.event.pull_request.number }}-sha-${{ github.event.pull_request.head.sha }}
 
-      # Build and push Docker image with Buildx (don't push on PR)
-      # https://github.com/docker/build-push-action
       - name: Build and push Docker image
-        id: build-and-push
-        uses: docker/build-push-action@v6.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=container-pr-${{ github.event.pull_request.number }}
+          cache-to: type=gha,mode=max,scope=container-pr-${{ github.event.pull_request.number }}
           context: .
-          labels: ${{ steps.meta.outputs.labels }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          provenance: false
+          push: true
+          sbom: false
+          tags: ${{ steps.metadata.outputs.tags }}
 
-      # Sign the resulting Docker image digest except on PRs.
-      # This will only write to the public Rekor transparency log when the Docker
-      # repository is public to avoid leaking data.  If you would like to publish
-      # transparency data even for private images, pass --force to cosign below.
-      # https://github.com/sigstore/cosign
-      - name: Sign the published Docker image
-        if: github.event_name != 'pull_request'
+  docker-release:
+    name: Publish release image
+    runs-on: ubuntu-latest
+    needs:
+      - quality
+      - test
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4.2.0
+
+      - name: Log into GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4.4.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: metadata
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
+        with:
+          flavor: latest=false
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          labels: ${{ env.DOCKER_METADATA_LABELS }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=stable,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+            type=sha,format=long,prefix=sha-
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        with:
+          context: .
+          labels: ${{ steps.metadata.outputs.labels }}
+          provenance: mode=max
+          push: true
+          sbom: true
+          tags: ${{ steps.metadata.outputs.tags }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Sign published image
         env:
-          # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
-          TAGS: ${{ steps.meta.outputs.tags }}
-          DIGEST: ${{ steps.build-and-push.outputs.digest }}
-        # This step uses the identity token to provision an ephemeral certificate
-        # against the sigstore community Fulcio instance.
-        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
