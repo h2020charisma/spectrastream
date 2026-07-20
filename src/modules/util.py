@@ -38,38 +38,41 @@ def load_calibration_file(uploaded_file: UploadedFile):  # ->
 
 def process_file_spe(uploaded_files: list[UploadedFile], label=None, units="nm"):
     out_spe = []
+
     for uploaded_file in uploaded_files:
-        # st.write(uploaded_file)
-        # st.write(uploaded_file.name)
-        # st.write(uploaded_file.type)
-
         extension = os.path.splitext(uploaded_file.name)[1][1:]
-        # name, extension = os.path.splitext(fname)
 
-        # # if extension == ".cha":
-        # #     spe = rc2.spectrum.from_chada(fname,dataset=self.dataset)
-        # # else:
-        with tempfile.NamedTemporaryFile() as f:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{extension}") as f:
             f.write(uploaded_file.read())
-            f.flush()
-            # video_function(f.name)
-            # st.write(f.name)
+            tmp_name = f.name
+
+        try:
+            # File is closed here, so Windows can reopen it
             spe = rc2.spectrum.from_local_file(
-                f.name,
+                tmp_name,
                 filetype=extension,
             )
-            spe = spe.trim_axes(
-                method="x-axis", boundaries=(100.0, max(spe.y)))
 
-            meta_dct = spe.meta.dict()["__root__"]
+            spe = spe.trim_axes(
+                method="x-axis",
+                boundaries=(100.0, max(spe.y)),
+            )
+
+            meta_dct = {}
             meta_dct["xlabel"] = "Raman shift [cm¯¹]"
             meta_dct["Original file"] = uploaded_file.name
-            meta_dct["Temporary file"] = f.name
+            meta_dct["Temporary file"] = tmp_name
             meta_dct["step"] = "Raw spe"
             meta_dct["label"] = str(label)
             meta_dct["units"] = units
-            spe.meta = meta_dct
+            spe = rc2.spectrum.Spectrum(spe.x, spe.y, metadata=meta_dct)
+
             out_spe.append(spe)
+
+        finally:
+            if os.path.exists(tmp_name):
+                os.remove(tmp_name)
+
     return out_spe[0]
 
 

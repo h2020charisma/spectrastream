@@ -21,7 +21,7 @@ from modules.util import (
 )
 from ramanchada2.io.output.write_csv import write_csv as io_write_csv
 
-from ramanchada2.protocols.calibration import CalibrationModel
+from ramanchada2.protocols.calibration.calibration_model import CalibrationModel
 
 navbar()
 

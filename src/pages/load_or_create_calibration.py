@@ -9,7 +9,6 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
-import streamlit_pydantic as sp
 from front_end.htmlTemplates import css
 
 from modules.models import (
@@ -37,15 +36,11 @@ from modules.util import (
     update_session_state,
 )
 from pydantic import BaseModel, Field
-from ramanchada2.protocols.calibration import (
-    CalibrationModel,
-    CertificatesDict,
-    LazerZeroingComponent,
-    XCalibrationComponent,
-    YCalibrationCertificate,
-    YCalibrationComponent,
-)
+from ramanchada2.protocols.calibration.calibration_model import CalibrationModel
+from ramanchada2.protocols.calibration.xcalibration import LazerZeroingComponent, XCalibrationComponent
+from ramanchada2.protocols.calibration.ycalibration import YCalibrationCertificate, CertificatesDict, YCalibrationComponent
 from ramanchada2.spectrum.baseline.baseline_rc1 import baseline_als, baseline_snip
+import ramanchada2.misc.constants as rc2const
 
 # warnings.showwarning("ignore")
 warnings.filterwarnings("ignore")
@@ -1303,9 +1298,35 @@ def process_x_calibration_si_creation():
                             for key in keys:
                                 del st.session_state[key]
 
-                        input_data = sp.pydantic_input(
-                            "Baseline correction settings", baseline_corr_class
-                        )
+                        if baseline_corr == "SNIP":
+                            niter = st.number_input(
+                                "niter", min_value=1, value=30, step=1,
+                                key="baseline_snip_niter"
+                            )
+                            input_data = {"niter": int(niter)}
+                        elif baseline_corr == "ALS":
+                            niter = st.number_input(
+                                "niter", min_value=1, value=30, step=1,
+                                key="baseline_als_niter"
+                            )
+                            lam = st.number_input(
+                                "lam", min_value=0.0, value=1e5,
+                                key="baseline_als_lam"
+                            )
+                            p = st.number_input(
+                                "p", min_value=0.0, max_value=1.0, value=0.001,
+                                format="%f", key="baseline_als_p"
+                            )
+                            smooth = st.number_input(
+                                "smooth", min_value=1, value=7, step=2,
+                                key="baseline_als_smooth"
+                            )
+                            input_data = {
+                                "niter": int(niter), "lam": float(lam),
+                                "p": float(p), "smooth": int(smooth)
+                            }
+                        else:
+                            input_data = {"niter": 30}
 
                         niter = input_data["niter"]
 
@@ -2266,7 +2287,7 @@ elif x_calib_btn in ["btn_derive_x_calibration_curve", "btn_lazer_zeroing"]:
 
     from ramanchada2.spectrum import Spectrum
 
-    ref_spe = calmodel.neon_wl[int(laser_wl)]
+    ref_spe = rc2const.NEON_WL[laser_wl]
 
     calibration_component_neon: XCalibrationComponent = calmodel.derive_model_curve(
         spe=neon_spe,

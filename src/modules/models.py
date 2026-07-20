@@ -87,21 +87,19 @@ class StateSpectrumSRMRef(BaseModel):
 default_state_srm_ref = StateSpectrumSRMRef()
 
 
-default_peak_find_neon = StatePeakFind(value_sharpening=None,
-                                       value_strategy='topo')
+default_peak_find_neon = StatePeakFind(value_strategy='topo')
 
 default_state_neon = StateSpectrum(crop=StateCrop(),
                                    normalize=StateNormalize(),
                                    peak_find=default_peak_find_neon)
 
 
-default_peak_find_si = StatePeakFind(value_sharpening=None,
-                                     value_strategy='topo')
+default_peak_find_si = StatePeakFind(value_strategy='topo')
 
 default_state_si = StateSpectrum(crop=StateCrop(crop_min=520.45-50, crop_max=520.45+50),
                                  normalize=StateNormalize(),
                                  baseline_corr=StateBaselineCorrection(
-                                     baseline_corr_type='SNIP', kwargs={'niter': 30}),
+                                     baseline_corr_type='SNIP'),
                                  peak_find=default_peak_find_si)
 
 default_state_target = StateSpectrum(crop=StateCrop(),
