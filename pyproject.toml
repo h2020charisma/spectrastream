@@ -39,7 +39,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://spectrastream.adma.ai"
+Homepage = "https://spectra.adma.ai/stream/"
 Repository = "https://github.com/h2020charisma/spectrastream"
 
 [dependency-groups]
