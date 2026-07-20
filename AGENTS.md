@@ -7,8 +7,8 @@
 - Run locally from the repository root with `uv run streamlit run src/streamlit_app.py`.
 - Run tests with `uv run pytest`; coverage with `uv run pytest --cov`; one test with `uv run pytest tests/basic_test.py::test_app`.
 - The four current tests are render smoke tests only. Pytest treats warnings as errors, and CI runs Python 3.10-3.12; add interaction or utility regressions for behavior changes.
-- Run hooks on staged files with `uv run pre-commit run`, or explicit files with `uv run pre-commit run --files <paths>`; hooks can rewrite files.
-- The inherited tree does not pass all-file Black, usort, or Flake8 checks. CI intentionally checks changed files; do not mass-format unrelated code.
+- Run hooks on staged files with `uv run pre-commit run`, explicit files with `uv run pre-commit run --files <paths>`, or the complete tree with `uv run pre-commit run --all-files`; hooks can rewrite files.
+- Ruff handles Python linting, import sorting, and formatting. The complete tree passes every hook, and CI enforces the all-files baseline.
 - Build the deployment image with `docker build -t spectrastream:local .`; it serves `/stream` on port 8501.
 
 ## Application Shape

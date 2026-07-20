@@ -50,16 +50,17 @@ uv run pytest --cov
 uv run pytest tests/basic_test.py::test_app
 ```
 
-Run pre-commit against staged files or named files:
+Run pre-commit against staged files, named files, or the complete tree:
 
 ```sh
 uv run pre-commit run
 uv run pre-commit run --files path/to/changed.py
+uv run pre-commit run --all-files
 ```
 
-Some hooks, including Black and usort, modify files. Review and stage their changes before rerunning the hooks.
+Ruff applies safe lint and import fixes, then formats Python files. Review and stage hook changes before rerunning the hooks.
 
-The inherited source tree does not yet pass every hook with `--all-files`. CI checks files changed by a pull request or push and runs the complete test suite. When touching an existing file, resolve hook failures in that file, but do not reformat unrelated files as part of the same change.
+The complete source tree passes every hook. CI runs pre-commit with `--all-files` and runs the complete test suite.
 
 Pytest treats warnings as errors. The current tests are Streamlit render smoke tests, so changes to widgets, session state, uploads, calibration processing, or downloads need interaction or utility-level regression tests rather than another render-only assertion.
 
