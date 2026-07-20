@@ -103,11 +103,11 @@ poetry run pre-commit install
 
 ```sh
 # To run directly
-poetry run streamlit run src/spectrastream/app.py
+poetry run streamlit run src/streamlit_app.py
 
 # Or, start a Poetry shell first
 poetry shell
-streamlit run src/spectrastream/app.py
+streamlit run src/streamlit_app.py
 # To exit the Poetry shell, type `exit`.
 ```
 
@@ -168,3 +168,6 @@ You will need to run `poetry install` again after this.
 ## Acknowledgements
 
 🇪🇺 This project has received funding from the European Union’s Horizon 2020 research and innovation program under [grant agreement No. 952921](https://cordis.europa.eu/project/id/952921).
+
+
+# From src : streamlit run streamlit_app.py
