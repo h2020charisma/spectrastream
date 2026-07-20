@@ -1,0 +1,14 @@
+**
+
+!Dockerfile
+!pyproject.toml
+!uv.lock
+
+!.streamlit/
+!.streamlit/**
+
+!src/
+!src/**
+
+**/__pycache__/
+**/*.py[cod]

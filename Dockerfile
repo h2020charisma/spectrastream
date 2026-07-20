@@ -1,31 +1,43 @@
-FROM python:3.12-slim AS requirements-stage
+FROM ghcr.io/astral-sh/uv:0.11.29@sha256:eb2843a1e56fd9e30c7276ce1a52cba86e64c7b385f5e3279a0e08e02dd058fc AS uv
 
-WORKDIR /tmp
+FROM python:3.12.12-slim-trixie@sha256:f3fa41d74a768c2fce8016b98c191ae8c1bacd8f1152870a3f9f87d350920b7c AS builder
 
-RUN pip install poetry
+COPY --from=uv /uv /uvx /bin/
 
-COPY ./pyproject.toml ./poetry.lock* /tmp/
-
-RUN poetry export -f requirements.txt --output requirements.txt --without=dev --without-hashes
-
-FROM python:3.12-slim
-
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=requirements-stage /tmp/requirements.txt /tmp/
-
-RUN sed -i 's/^-e //' /tmp/requirements.txt \
-    && pip install --no-cache-dir --upgrade -r /tmp/requirements.txt \
-    && rm /tmp/requirements.txt
-
-COPY ./src /app
+ENV UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
 
 WORKDIR /app
 
+COPY pyproject.toml uv.lock ./
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-install-project
+
+FROM python:3.12.12-slim-trixie@sha256:f3fa41d74a768c2fce8016b98c191ae8c1bacd8f1152870a3f9f87d350920b7c AS runtime
+
+RUN groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid app --no-create-home --home-dir /tmp \
+        --shell /usr/sbin/nologin app
+
+ENV HOME=/tmp \
+    PATH="/app/.venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
+    STREAMLIT_SERVER_HEADLESS=true
+
+WORKDIR /app
+
+COPY --from=builder /app/.venv /app/.venv
+COPY .streamlit ./.streamlit
+COPY src ./
+
+USER app
+
 EXPOSE 8501
 
-HEALTHCHECK CMD curl --fail http://127.0.0.1:8501/stream/_stcore/health
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/stream/_stcore/health', timeout=3).read()"]
 
 ENTRYPOINT ["streamlit", "run", "streamlit_app.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.baseUrlPath=/stream"]
