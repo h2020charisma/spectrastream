@@ -67,9 +67,6 @@ relative_files = true
 source = [
   "src",
 ]
-omit = [
-  "src/pages/__load_target_spectra.py",
-]
 
 [tool.coverage.paths]
 source = [

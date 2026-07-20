@@ -24,7 +24,7 @@
 
 - Streamlit pages execute at import time and assume the main page initialized session state. Tests that open a page directly must seed the cache as `tests/basic_test.py` does.
 - The expected UI order is main page, instrument settings, create/load calibration, then apply calibration.
-- `src/pages/__load_target_spectra.py` is inactive malformed legacy code and is excluded from coverage; `src/experiments/tests01.py` is not a pytest test.
+- `src/experiments/tests01.py` is not a pytest test.
 - Uploaded calibration files are passed to `pickle.load`; treat them as trusted-only and do not weaken this warning in user or contributor docs.
 - `.streamlit/config.toml` must remain at the repository root so root-level local runs and the image use the same navigation setting.
 - The image runs as UID/GID 10001 with root-owned application files and expects only `/tmp` to be writable.
