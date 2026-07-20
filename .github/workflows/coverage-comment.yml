@@ -1,29 +1,34 @@
 ---
-name: Post a coverage report comment on pull requests
+name: Post coverage report comment on pull requests
 
-on:  # yamllint disable-line rule:truthy
+# yamllint disable rule:truthy
+on:  # zizmor: ignore[dangerous-triggers] No untrusted code is checked out or executed.
   workflow_run:
     workflows:
-      - 'CI'
+      - CI
     types:
-      - 'completed'
+      - completed
+# yamllint enable rule:truthy
+
+permissions: {}
 
 jobs:
-
   comment:
-
+    name: Post coverage comment
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    timeout-minutes: 10
     permissions:
-      pull-requests: write
-      contents: write
       actions: read
-
+      contents: write
+      pull-requests: write
     steps:
-
-      - name: Post the stored pull request coverage comment
-        uses: py-cov-action/python-coverage-comment-action@v3.23
+      # This privileged workflow must never check out or execute pull request code.
+      - name: Post stored pull request coverage comment
+        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f  # v4.1
         with:
-          COVERAGE_DATA_BRANCH: 'COVERAGE-REPORT'
+          COVERAGE_DATA_BRANCH: COVERAGE-REPORT
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}
