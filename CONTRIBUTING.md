@@ -109,7 +109,7 @@ pr-<number>-sha-<commit>
 
 Fork and Dependabot pull requests are build-only because their tokens cannot safely publish packages.
 
-Successful `main` builds publish `latest`, `stable`, and `sha-<commit>`. Version tags matching `vX.Y.Z` also publish semantic-version image tags. Production images include an SBOM, provenance attestations, and a keyless signature. External deployment automation may track `latest`, so merging to `main` can update running deployments automatically.
+Successful `main` builds publish `latest`, `stable`, and `sha-<commit>`. Production images include an SBOM, provenance attestations, and a keyless signature. External deployment automation may track `latest`, so merging to `main` can update running deployments automatically.
 
 ## Data And Security
 
@@ -125,5 +125,6 @@ Before requesting review:
 - Rebase or otherwise update the branch against current `main`.
 - Run the relevant tests and pre-commit hooks.
 - Build the image when changing dependencies, Streamlit configuration, or container behavior.
+- Update relevant documentation when behavior, setup, security, or deployment changes.
 - Describe user-visible behavior, dependency changes, security implications, and remaining limitations.
 - Keep generated caches, virtual environments, local coverage files, and temporary calibration artifacts out of commits.

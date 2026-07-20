@@ -1,6 +1,6 @@
 # SpectraStream
 
-SpectraStream is a Streamlit application for creating and applying Raman spectra calibrations in a browser. It coordinates instrument settings, reference spectra, and calibration models using the [`ramanchada2`](https://github.com/h2020charisma/ramanchada2) processing library.
+SpectraStream is a [Streamlit](https://streamlit.io/) application for creating and applying Raman spectra calibrations in a browser. It coordinates instrument settings, reference spectra, and calibration models using the [`ramanchada2`](https://github.com/h2020charisma/ramanchada2) processing library.
 
 The project is currently alpha software.
 
@@ -58,4 +58,4 @@ SpectraStream is available under the [MIT License](LICENSE).
 
 ## Acknowledgements
 
-This project received funding from the European Union's Horizon 2020 research and innovation programme under [grant agreement No. 952921](https://cordis.europa.eu/project/id/952921).
+🇪🇺 This project received funding from the European Union's Horizon 2020 research and innovation programme under [grant agreement No. 952921](https://cordis.europa.eu/project/id/952921).
