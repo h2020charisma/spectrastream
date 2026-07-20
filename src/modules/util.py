@@ -1,16 +1,13 @@
 import os
 import pickle
 import tempfile
-
 from collections import defaultdict
-from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import ramanchada2 as rc2
 import streamlit as st
-from streamlit.runtime.uploaded_file_manager import DeletedFile, UploadedFile
+from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 
 def simple_plot_spe(spe, label, xlabel):
@@ -27,7 +24,6 @@ def simple_plot_spe(spe, label, xlabel):
 
 
 def load_calibration_file(uploaded_file: UploadedFile):  # ->
-    extension = os.path.splitext(uploaded_file.name)[1][1:]
     return pickle.load(uploaded_file)
 
     # with tempfile.NamedTemporaryFile() as f:

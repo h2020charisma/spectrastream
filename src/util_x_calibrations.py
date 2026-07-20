@@ -1,12 +1,10 @@
 import os
 import tempfile
-from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 import matplotlib.pyplot as plt
 import ramanchada2 as rc2
 import streamlit as st
-from streamlit.runtime.uploaded_file_manager import DeletedFile, UploadedFile
+from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 
 def process_file_spe(uploaded_files: list[UploadedFile], label=None) -> None:
