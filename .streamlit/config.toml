@@ -1,2 +1,17 @@
 [client]
+# Navigation is declared in code via st.navigation(position="top"); the
+# automatic sidebar listing would duplicate it. This file must stay at the
+# repository root so local runs and the container image agree.
 showSidebarNavigation = false
+
+[theme]
+base = "light"
+primaryColor = "#0b6e99"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f3f6f9"
+textColor = "#16232b"
+linkColor = "#0b6e99"
+codeBackgroundColor = "#eef3f7"
+borderColor = "#dce4ea"
+showWidgetBorder = true
+baseRadius = "0.6rem"

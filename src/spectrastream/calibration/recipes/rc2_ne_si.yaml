@@ -1,0 +1,114 @@
+# CHARISMA/ramanchada2 classic x-calibration: a Neon lamp fixes the shape of
+# the wavenumber axis, a Silicon wafer fixes its zero. The Silicon step is
+# optional on purpose -- without it the Neon curve is still a real improvement,
+# so a missing wafer degrades the result instead of failing the run.
+id: rc2.ne_si
+label: Neon + silicon (CHARISMA)
+engine: rc2
+version: 1
+description: >
+  Derives the wavenumber axis from a Neon emission spectrum, then zeroes the
+  laser line on the silicon 520.45 cm-1 band. Optionally applies relative
+  intensity calibration from a measured standard reference material.
+
+slots:
+  - id: neon
+    label: Neon lamp spectrum
+    material: Ne
+    required: true
+    units: cm-1
+    # Neon lines span far more dynamic range than one exposure can capture, so
+    # several exposures are the norm rather than the exception. Different
+    # exposure times are HDR-merged; equal ones are averaged as replicates.
+    accept_multiple: true
+    merge: auto
+    help: >
+      Emission spectrum of a neon lamp taken on this instrument. Upload several
+      exposures if you have them.
+    preprocess:
+      - op: normalize
+        enabled: false
+        params: {strategy: minmax}
+      - op: trim
+        enabled: false
+
+  - id: si
+    label: Silicon spectrum
+    material: Si
+    required: false
+    units: cm-1
+    accept_multiple: true
+    merge: auto
+    help: >
+      Silicon wafer, used to zero the laser line. Skip it and you still get the
+      Neon curve, just without an absolute zero.
+    preprocess:
+      # Only the 520.45 band matters, and everything else is a source of
+      # spurious peaks. The zeroing step crops to a window of its own, but
+      # cropping here is what lets you *see* what the fit will work on and
+      # judge the baseline and normalisation against it.
+      - op: trim
+        enabled: true
+        label: Crop to the silicon band
+        params: {min: 420, max: 620}
+      - op: baseline
+        enabled: true
+        label: Remove baseline (SNIP)
+        params: {method: snip, niter: 40}
+      - op: normalize
+        enabled: false
+        params: {strategy: minmax}
+
+  - id: srm
+    label: Standard reference material spectrum
+    material: SRM
+    required: false
+    units: cm-1
+    accept_multiple: true
+    merge: auto
+    help: >
+      Measured spectrum of a NIST SRM or calibrated LED source, for relative
+      intensity (y) calibration.
+    preprocess:
+      - op: smooth
+        enabled: false
+        params: {method: savgol, window_length: 5, polyorder: 3}
+      - op: trim
+        enabled: false
+
+steps:
+  - id: x_curve
+    label: Wavenumber curve (neon)
+    action: x_curve
+    inputs: [neon]
+    produces: x_axis
+    params:
+      match_method: qargmin2d
+      interpolator_method: poly
+      should_fit: false
+      prominence_coeff: 3
+      find_kw: {wlen: 200, width: 1}
+  - id: laser_zero
+    label: Laser zeroing (silicon)
+    action: laser_zero
+    inputs: [si]
+    produces: x_zero
+    optional: true
+    params:
+      si_profile: Pearson4
+      should_fit: true
+      # Declared so the peak-finding controls appear for silicon too; the
+      # band wants different settings from the neon lines.
+      find_kw: {wlen: 200, width: 1}
+      prominence_coeff: 3
+      # Fit only around the band being measured. Peak finding over the whole
+      # spectrum picks up noise, and each spurious candidate costs a Pearson4
+      # fit.
+      window_cm1: 100
+  - id: y_intensity
+    label: Relative intensity (SRM)
+    action: y_intensity
+    inputs: [srm]
+    produces: y_response
+    optional: true
+    params: {}

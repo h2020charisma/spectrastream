@@ -13,20 +13,32 @@
 
 ## Application Shape
 
-- `src/streamlit_app.py` is the entrypoint and initializes shared session-state caches.
-- `src/pages/load_instrument_settings.py` stores instrument metadata required by later pages.
-- `src/pages/load_or_create_calibration.py` is the large, top-level X/Y calibration workflow.
-- `src/pages/apply_calibration.py` preprocesses target spectra and applies saved calibrations.
-- `src/modules/models.py` defines UI state; `src/modules/util.py` owns upload, session, plotting, and calibration helpers.
-- Raman algorithms come from [`ramanchada2`](https://github.com/h2020charisma/ramanchada2); this repository mainly orchestrates them through Streamlit state.
+Three layers, and the boundary between them is load-bearing:
+
+- `src/spectrastream/` is the framework-independent core and **must not import streamlit**. It holds ingestion, instrument profiles, NeXus export, CWA §8 export, and the pluggable calibration API. Keeping it clean is what makes it testable and what will let the UI be replaced later.
+- `src/ui/` is Streamlit-only: one typed `AppState`, Altair charts, the browser-storage bridge, and the recipe-driven form renderer.
+- `src/streamlit_app.py` declares navigation via `st.navigation`; `src/app_pages/*.py` are page bodies kept as direct scripts, with logic in the modules above.
+
+Raman algorithms come from [`ramanchada2`](https://github.com/h2020charisma/ramanchada2); NeXus output from [`pyambit`](https://github.com/ideaconsult/pyambit). This repository orchestrates them.
+
+### Instruments have optical paths
+
+`InstrumentProfile` is the box (make, model, serial); `OpticalPath` is one configuration of it (wavelength, grating, slit, pinhole, collection optics) and an instrument holds several. Wavelength and calibrations live on the **path**, not the instrument — a correction derived at 532 nm says nothing about a 785 nm path. `ProfileLibrary.from_json` migrates the older flat schema by lifting everything path-shaped into a single `OP1`.
+
+### Calibration is data, not code
+
+A `RecipeSpec` (YAML in `src/spectrastream/calibration/recipes/`) declares which reference spectra a protocol needs and which steps run over them. Engines implement a deliberately narrow interface — spectra in, corrected spectrum out, plus a JSON `to_dict` — so nothing about *how* a correction was derived reaches the app or the exported file. Add a protocol by adding a file; `$SPECTRASTREAM_RECIPES` adds directories.
 
 ## Gotchas
 
-- Streamlit pages execute at import time and assume the main page initialized session state. Tests that open a page directly must seed the cache as `tests/basic_test.py` does.
-- The expected UI order is main page, instrument settings, create/load calibration, then apply calibration.
-- `src/experiments/tests01.py` is not a pytest test.
-- Uploaded calibration files are passed to `pickle.load`; treat them as trusted-only and do not weaken this warning in user or contributor docs.
-- `.streamlit/config.toml` must remain at the repository root so root-level local runs and the image use the same navigation setting.
+- Calling the public `CalibrationModel.derive_model_curve` / `derive_model_zero` raises `DeprecationWarning`, and pytest runs with `filterwarnings = ["error"]`. The engine calls the private `_derive_*` on purpose.
+- `LazerZeroingComponent.model_units` is `"nm"` but its `process()` returns cm-1 — `model_units` describes the stored model, not the output axis. Use `Rc2Fitted.output_units`.
+- Silicon must be cropped to a window around the band before peak fitting (`window_cm1`). Without it, noise yields dozens of candidates and each costs a Pearson4 fit; the run effectively hangs.
+- `export_cwa_x` labels both CSV columns `_cm1` while sampling the model directly, so a calibration that outputs nm would publish mislabelled data. `x_calibration_model()` withholds the download instead.
+- `pyambit.configure_papp` iterates `meta.keys()` unconditionally despite defaulting the argument to `None`; always pass a dict.
+- The browser-storage component registers into the *runtime's* registry at import time, but the module is cached in `sys.modules` — a second runtime in one process (every AppTest after the first) finds nothing registered, so `_mount` re-registers on demand.
+- Never write to browser storage before the bridge has answered: "no reply yet" is not "no profiles", and confusing them destroys the user's data.
+- `.streamlit/config.toml` must remain at the repository root so root-level local runs and the image use the same navigation and theme settings.
 - The image runs as UID/GID 10001 with root-owned application files and expects only `/tmp` to be writable.
 - Same-repository PRs publish `pr-N` and `pr-N-sha-<commit>` images; fork and Dependabot PRs are build-only.
 - Successful `main` builds publish `latest`, `stable`, and `sha-<commit>`. External automation may deploy `latest` automatically.
