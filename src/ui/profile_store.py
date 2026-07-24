@@ -42,14 +42,18 @@ def sync(state: AppState) -> None:
 
     if not result.answered:
         # First render: the browser has not reported yet. Leave the in-memory
-        # library alone and wait for the rerun the component will trigger.
+        # library alone and wait for the rerun the component will trigger. A
+        # queued write must survive that wait, or the save is silently dropped.
+        if pending is not None:
+            st.session_state[_PENDING_KEY] = pending
+        if clear:
+            st.session_state[_CLEAR_KEY] = True
         return
 
     state.storage_persistent = result.available
 
     if not result.available:
-        if not state.library_loaded:
-            state.library_loaded = True
+        state.library_loaded = True
         return
 
     if clear:
@@ -57,9 +61,11 @@ def sync(state: AppState) -> None:
         state.library_loaded = True
         return
 
-    if pending is not None:
-        # We just wrote; the echo is our own text. Trust the in-memory copy.
-        state.library_loaded = True
+    # Read the browser's copy exactly once per session. After that the
+    # in-memory library is authoritative and writes flow outwards. Re-reading
+    # on every run would overwrite whatever the user just edited: the storage
+    # echo always lags a save by at least one rerun.
+    if state.library_loaded:
         return
 
     library, problem = localstore.load_library(result.text)

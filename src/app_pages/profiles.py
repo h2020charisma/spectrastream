@@ -22,7 +22,11 @@ from ui import profile_store
 from ui.state import get_state
 
 state = get_state()
-library = state.library
+
+# Deliberately not aliased to a module-level variable. Dialog callbacks run in
+# a later script run than the one that defined them, so a captured reference
+# can point at a library object the rest of the app has already replaced --
+# edits would land on the stale copy and never be saved.
 
 if not state.storage_persistent:
     st.warning(
@@ -73,7 +77,7 @@ def edit_profile(profile: InstrumentProfile | None):
             # it one rather than leaving a dead end.
             draft.add_optical_path(OpticalPath(op_id="OP1"))
 
-        library.upsert(draft)
+        state.library.upsert(draft)
         state.set_active_profile(draft.id)
         profile_store.save(state)
 
@@ -148,7 +152,7 @@ def edit_optical_path(profile: InstrumentProfile, path: OpticalPath | None):
         draft.notes = notes.strip() or None
 
         profile.add_optical_path(draft)
-        library.upsert(profile)
+        state.library.upsert(profile)
         state.set_active_profile(profile.id)
         state.set_active_optical_path(draft.id)
         profile_store.save(state)
@@ -162,7 +166,7 @@ header.button(
     on_click=lambda: edit_profile(None),
 )
 
-if not library.profiles:
+if not state.library.profiles:
     st.info(
         "No instruments yet. You do not need one to convert a spectrum — an "
         "instrument just records metadata for the file, and gives optical "
@@ -170,7 +174,7 @@ if not library.profiles:
         icon=":material/precision_manufacturing:",
     )
 
-for profile in library.profiles:
+for profile in state.library.profiles:
     with st.container(border=True):
         top = st.container(horizontal=True, vertical_alignment="center")
         top.markdown(f"### {profile.name}")
@@ -202,7 +206,7 @@ for profile in library.profiles:
                         row.badge("Active", color="blue")
                     elif row.button("Use this", key=f"act_{path.id}_{record.id}"):
                         path.active_calibration_id = record.id
-                        library.upsert(profile)
+                        state.library.upsert(profile)
                         profile_store.save(state)
                     if row.button(
                         "",
@@ -211,7 +215,7 @@ for profile in library.profiles:
                         help="Remove this calibration",
                     ):
                         path.remove_calibration(record.id)
-                        library.upsert(profile)
+                        state.library.upsert(profile)
                         profile_store.save(state)
                     if record.skipped_step_labels:
                         st.caption(
@@ -245,7 +249,7 @@ for profile in library.profiles:
                     key=f"delop_{path.id}",
                 ):
                     profile.remove_optical_path(path.id)
-                    library.upsert(profile)
+                    state.library.upsert(profile)
                     profile_store.save(state)
 
         actions = st.container(horizontal=True)
@@ -268,7 +272,7 @@ for profile in library.profiles:
             icon=":material/delete:",
             key=f"delete_{profile.id}",
         ):
-            library.remove(profile.id)
+            state.library.remove(profile.id)
             if state.active_profile_id == profile.id:
                 state.set_active_profile(None)
             profile_store.save(state)
@@ -283,11 +287,11 @@ st.caption(
 backup = st.container(horizontal=True)
 backup.download_button(
     "Export profiles",
-    data=export_bytes(library),
+    data=export_bytes(state.library),
     file_name="spectrastream-profiles.json",
     mime="application/json",
     icon=":material/download:",
-    disabled=not library.profiles,
+    disabled=not state.library.profiles,
 )
 
 imported = st.file_uploader(
@@ -301,7 +305,7 @@ if imported is not None:
     except (ValueError, UnicodeDecodeError) as err:
         st.error(f"Could not read that file: {err}", icon=":material/error:")
     else:
-        added, replaced = merge(library, incoming.profiles)
+        added, replaced = merge(state.library, incoming.profiles)
         st.success(
             f"Imported {added} new and updated {replaced} existing profile(s).",
             icon=":material/check_circle:",

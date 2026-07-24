@@ -8,8 +8,10 @@ visitor actually sees.
 import pytest
 from streamlit.testing.v1 import AppTest
 
+#: Home is absent on purpose: its st.page_link calls need the navigation
+#: context, so it only renders through the entry point -- which is also the
+#: only way a user ever reaches it, and is covered by the test below.
 PAGES = [
-    "src/app_pages/home.py",
     "src/app_pages/convert.py",
     "src/app_pages/calibrate.py",
     "src/app_pages/profiles.py",
@@ -27,6 +29,15 @@ def test_alpha_banner_is_always_visible():
     at = AppTest.from_file("src/streamlit_app.py")
     at.run(timeout=60)
     assert any("Alpha" in w.value for w in at.warning)
+
+
+def test_home_offers_working_links_not_decorative_cards():
+    """The three cards must navigate. Panels that look clickable and are not
+    are worse than plain text."""
+    at = AppTest.from_file("src/streamlit_app.py")
+    at.run(timeout=60)
+    targets = {link.page for link in at.get("page_link")}
+    assert {"convert", "profiles", "calibrate"} <= targets
 
 
 @pytest.mark.parametrize("page", PAGES)

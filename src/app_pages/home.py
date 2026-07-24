@@ -18,23 +18,39 @@ st.markdown(
 left, middle, right = st.columns(3)
 with left:
     with st.container(border=True):
-        st.markdown("#### :material/upload_file: 1 · Convert")
-        st.markdown(
-            "Drop in a spectrum. Download NeXus straight away — no metadata required."
+        st.markdown("**1 · Convert**")
+        st.caption(
+            "Drop in a spectrum and download NeXus. All you need beyond the "
+            "file is its units and the laser wavelength."
+        )
+        st.page_link(
+            "app_pages/convert.py",
+            label="Convert a spectrum",
+            icon=":material/upload_file:",
         )
 with middle:
     with st.container(border=True):
-        st.markdown("#### :material/precision_manufacturing: 2 · Describe")
-        st.markdown(
-            "Optionally save an instrument profile. It stays in this browser "
-            "and enriches every file you export."
+        st.markdown("**2 · Describe**")
+        st.caption(
+            "Record an instrument and its optical paths. They stay in this "
+            "browser and enrich every file you export."
+        )
+        st.page_link(
+            "app_pages/profiles.py",
+            label="Set up an instrument",
+            icon=":material/precision_manufacturing:",
         )
 with right:
     with st.container(border=True):
-        st.markdown("#### :material/tune: 3 · Calibrate")
-        st.markdown(
-            "Optionally derive a calibration from reference spectra and attach "
-            "it to a profile for reuse."
+        st.markdown("**3 · Calibrate**")
+        st.caption(
+            "Derive a calibration from reference spectra and attach it to an "
+            "optical path for reuse."
+        )
+        st.page_link(
+            "app_pages/calibrate.py",
+            label="Derive a calibration",
+            icon=":material/tune:",
         )
 
 st.subheader("What you need")
