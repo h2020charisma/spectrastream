@@ -16,6 +16,7 @@ from typing import Any, Iterable, Mapping
 import numpy as np
 import pandas as pd
 import ramanchada2.misc.constants as rc2const
+from ramanchada2.misc.utils.ramanshift_to_wavelength import shift_cm_1_to_abs_nm
 from ramanchada2.protocols.calibration.calibration_model import CalibrationModel
 from ramanchada2.protocols.calibration.xcalibration import (
     LazerZeroingComponent,
@@ -43,6 +44,21 @@ ENGINE_ID = "rc2"
 
 #: Silicon's certified first-order band.
 SI_REF_CM1 = 520.45
+
+#: Peak-finding defaults. These are the VAMAS pipeline's, tuned over months of
+#: real round-robin data -- wlen in particular, because a narrower window makes
+#: narrower candidate groups and a group with fewer points than the model has
+#: parameters cannot be fitted at all.
+DEFAULT_FIND_KW = {"wlen": 200, "width": 1}
+
+
+def _clip_window(spe: Spectrum, low: float, high: float, pad: float = 10.0):
+    """Trim to a window, padded, and leave the spectrum alone if it misses."""
+    lo = max(low - pad, float(min(spe.x)))
+    hi = min(high + pad, float(max(spe.x)))
+    if lo >= hi:
+        return spe
+    return spe.trim_axes(method="x-axis", boundaries=(lo, hi))
 
 
 def _output_units(component) -> str | None:
@@ -182,7 +198,7 @@ def _action_x_curve(
 ) -> tuple[StepOutcome, list[Diagnostic]]:
     spe = inputs[step.inputs[0]]
     ref = _neon_reference(params, calmodel.laser_wl)
-    find_kw = dict(params.get("find_kw") or {"wlen": 100, "width": 1})
+    find_kw = dict(params.get("find_kw") or DEFAULT_FIND_KW)
     prominence_coeff = float(params.get("prominence_coeff", 3))
     calmodel.prominence_coeff = prominence_coeff
     find_kw["prominence"] = spe.y_noise_MAD() * prominence_coeff
@@ -216,27 +232,52 @@ def _action_laser_zero(
     ref_cm1 = next(iter(ref))
     spe_units = ctx.units_for(step.inputs[0], params.get("spe_units", "cm-1"))
 
-    # Crop to a window around the expected band *before* fitting. Without this,
-    # noise elsewhere in the spectrum produces dozens of candidate peaks and
-    # the Pearson4 fit takes minutes rather than milliseconds -- the reason the
-    # original app cropped silicon to 520.45 +/- 50 by default. Only one band
-    # is being measured, so everything outside the window is a distraction.
-    window = params.get("window_cm1", 50.0)
+    # This mirrors the VAMAS pipeline's spectraframe_calibrate, which is the
+    # sequence known to work on real round-robin data. Each step below exists
+    # because leaving it out breaks on ordinary spectra.
+    window = float(params.get("window_cm1", 100.0))
+
+    # 1. Narrow to the band while still on a Raman-shift axis, where the window
+    #    is expressible. Everything outside it is a source of spurious peaks.
     if window and spe_units == "cm-1":
-        low, high = ref_cm1 - float(window), ref_cm1 + float(window)
+        low, high = ref_cm1 - window, ref_cm1 + window
         if min(spe.x) < high and max(spe.x) > low:
             spe = spe.trim_axes(
                 method="x-axis",
                 boundaries=(max(low, float(min(spe.x))), min(high, float(max(spe.x)))),
             )
 
-    # Zeroing measures the band on whatever axis the preceding steps produced,
-    # so push the silicon spectrum through them first.
+    # 2. Push it through the steps derived so far: zeroing measures the band on
+    #    whatever axis those produced.
     if calmodel.components:
         spe = calmodel.apply_calibration_x(spe, spe_units=spe_units)
-        spe_units = calmodel.components[-1].model_units
+        spe_units = _output_units(calmodel.components[-1])
 
-    find_kw = dict(params.get("find_kw") or {"wlen": 100, "width": 1})
+        # 3. Extrapolating the neon curve beyond its matched range yields NaNs.
+        #    Peak fitting over them is what produces "func input vector length
+        #    N must not exceed func output vector length M": the fit sees far
+        #    fewer usable points than it has parameters.
+        spe = spe.dropna()
+
+        # 4. Re-narrow on the *converted* axis. The cm-1 window above no longer
+        #    applies once the axis is in nm, and without this the fit is back to
+        #    chasing noise across the full range.
+        if window:
+            laser = calmodel.laser_wl
+            if laser and spe_units == "nm":
+                lo_nm = shift_cm_1_to_abs_nm(ref_cm1 - window, laser)
+                hi_nm = shift_cm_1_to_abs_nm(ref_cm1 + window, laser)
+                spe = _clip_window(spe, *sorted([lo_nm, hi_nm]))
+
+    if len(spe.x) < 5:
+        raise CalibrationError(
+            "After cropping to the band and discarding points the calibration "
+            "curve could not reach, too little of the silicon spectrum is left "
+            "to fit. Widen the crop, or check that the neon calibration covers "
+            "the silicon band."
+        )
+
+    find_kw = dict(params.get("find_kw") or DEFAULT_FIND_KW)
     find_kw["prominence"] = spe.y_noise_MAD() * calmodel.prominence_coeff
 
     component = calmodel._derive_model_zero(
@@ -372,6 +413,10 @@ class Rc2Engine:
 
         laser_wl = context.laser_wl_nm
         calmodel = CalibrationModel(int(laser_wl) if laser_wl is not None else None)
+        # "drop" discards non-monotonic stretches of the fitted curve instead of
+        # filling them with NaN. The VAMAS pipeline sets this, and without it
+        # every downstream step has to cope with holes in the axis.
+        calmodel.nonmonotonic = str((params or {}).get("nonmonotonic", "drop"))
 
         outcomes: list[StepOutcome] = []
         diagnostics: list[Diagnostic] = []

@@ -6,10 +6,11 @@ from spectrastream.ingest import load_spectrum
 
 EXPERIMENTS = Path(__file__).parents[1] / "src" / "experiments"
 
-#: The repository ships a 532 nm neon spectrum but no silicon wafer spectrum,
-#: so the "silicon missing" path is the one exercised end to end here.
 NEON_532 = EXPERIMENTS / "NeonSNQ043_iR532_Probe_5msx2.txt"
 PST_532 = EXPERIMENTS / "PST_WITEcAlpha532nm_20x_PFO_PH_10mW_10x30s_005_Spec.Data 1.spc"
+#: Real silicon from the CHARISMA round robin, so the laser-zeroing path is
+#: exercised against a measurement rather than a model of one.
+SILICON_532 = EXPERIMENTS / "S0B_1_OP1_silicon_532.csv"
 
 
 def _load(path: Path):
@@ -37,17 +38,14 @@ def target_spectrum():
 
 @pytest.fixture(scope="session")
 def silicon_spectrum():
-    """A synthetic silicon wafer spectrum.
+    """A real silicon wafer measurement, 532 nm, from the CHARISMA round robin.
 
-    The repository ships no silicon measurement, but the laser-zeroing path is
-    too important to leave untested -- and a real one would only add noise to
-    what is being checked. A single Gaussian on the certified 520.45 cm-1 band
-    is enough for peak finding to lock onto.
+    Deliberately not synthetic. A Gaussian plus flat noise puts its noise floor
+    just under the prominence threshold, so peak finding treats every wiggle as
+    a candidate and each one costs a Pearson4 fit -- which says a great deal
+    about the fixture and nothing about the code. Real silicon has a band three
+    orders of magnitude above its noise, and its band sits at 520.84 rather
+    than the certified 520.45: that offset is the instrument error the
+    calibration exists to remove.
     """
-    import numpy as np
-    from ramanchada2.spectrum import Spectrum
-
-    x = np.arange(400.0, 700.0, 0.5)
-    y = 1000.0 * np.exp(-((x - 520.45) ** 2) / (2 * 3.0**2))
-    y = y + 1.0 + np.random.default_rng(0).normal(0, 0.5, size=x.shape)
-    return Spectrum(x=x, y=y)
+    return _load(SILICON_532).spectrum

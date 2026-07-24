@@ -14,6 +14,12 @@ from spectrastream.acquisition import guess_from_metadata
 from spectrastream.calibration.spec import RecipeSpec, SpectrumSlot
 from spectrastream.ingest import IngestError, load_spectrum
 from spectrastream.merge import MergeError, combine
+from spectrastream.peaks import (
+    DEFAULT_FIND_KW,
+    PeakFindError,
+    too_few_points,
+)
+from spectrastream.peaks import find as find_peaks
 from spectrastream.preprocess import (
     BASELINE_METHODS,
     NORMALIZE_LABELS,
@@ -46,7 +52,98 @@ TUNABLES = {
 }
 
 
-def _slot_uploader(slot: SpectrumSlot, draft: CalibrationDraft) -> list[str]:
+def _steps_using(recipe: RecipeSpec, slot_id: str):
+    return [s for s in recipe.steps if slot_id in s.inputs]
+
+
+def _peak_controls(
+    slot: SpectrumSlot, recipe: RecipeSpec, draft: CalibrationDraft
+) -> None:
+    """Peak finding for this material, beside the spectrum it applies to.
+
+    These are per sample, not global: neon and silicon want different windows,
+    which is why the VAMAS pipeline keys them by sample. Keeping them here also
+    means an error advising "widen the peak window" names something visible.
+    """
+    steps = [
+        s
+        for s in _steps_using(recipe, slot.id)
+        if "find_kw" in s.params or "prominence_coeff" in s.params
+    ]
+    if not steps:
+        return
+
+    for step in steps:
+        scope = draft.params.setdefault(step.id, {})
+        defaults = dict(step.params.get("find_kw") or DEFAULT_FIND_KW)
+        current = dict(scope.get("find_kw") or defaults)
+
+        cols = st.columns(3)
+        current["wlen"] = cols[0].number_input(
+            "Peak window",
+            value=int(current.get("wlen", 200)),
+            step=10,
+            min_value=10,
+            key=f"find_{recipe.id}_{step.id}_wlen",
+            help=(
+                "How far around a candidate its prominence is judged. Too "
+                "narrow and the fit is handed groups with fewer points than it "
+                "has parameters, which cannot be fitted at all."
+            ),
+        )
+        current["width"] = cols[1].number_input(
+            "Minimum width",
+            value=int(current.get("width", 1)),
+            step=1,
+            min_value=1,
+            key=f"find_{recipe.id}_{step.id}_width",
+        )
+        scope["prominence_coeff"] = cols[2].number_input(
+            "Prominence × noise",
+            value=float(
+                scope.get("prominence_coeff", step.params.get("prominence_coeff", 3))
+            ),
+            step=0.5,
+            min_value=0.5,
+            key=f"find_{recipe.id}_{step.id}_prom",
+            help="How far above the noise a candidate must stand.",
+        )
+        scope["find_kw"] = current
+
+        if "should_fit" in step.params:
+            scope["should_fit"] = st.checkbox(
+                "Fit peak shapes",
+                value=bool(scope.get("should_fit", step.params["should_fit"])),
+                key=f"fit_{recipe.id}_{step.id}",
+                help=(
+                    "Fit a profile to each candidate for a sub-pixel position "
+                    "instead of taking it as found. Slower."
+                ),
+            )
+
+
+def _peak_report(slot: SpectrumSlot, recipe: RecipeSpec, draft: CalibrationDraft):
+    """What the engine will find with the current settings."""
+    entry = draft.slots.get(slot.id)
+    if entry is None or entry.merged is None:
+        return None
+
+    steps = _steps_using(recipe, slot.id)
+    if not steps:
+        return None
+    scope = draft.params.get(steps[0].id, {})
+    find_kw = scope.get("find_kw") or steps[0].params.get("find_kw")
+    coeff = scope.get("prominence_coeff", steps[0].params.get("prominence_coeff", 3))
+    try:
+        return find_peaks(entry.merged, find_kw, float(coeff))
+    except PeakFindError as err:
+        st.caption(f":red[Peak finding failed: {err}]")
+        return None
+
+
+def _slot_uploader(
+    slot: SpectrumSlot, recipe: RecipeSpec, draft: CalibrationDraft
+) -> list[str]:
     """One slot: files, units, exposures, preprocessing. Returns problems."""
     problems: list[str] = []
     entry = draft.slots.setdefault(slot.id, SlotInput(units=slot.units))
@@ -105,6 +202,13 @@ def _slot_uploader(slot: SpectrumSlot, draft: CalibrationDraft) -> list[str]:
         _exposure_inputs(slot, draft, entry)
 
     _preprocess_controls(slot, draft, entry)
+
+    with st.expander("Peak finding", icon=":material/graphic_eq:"):
+        st.caption(
+            "These apply to this material only. What the fit sees depends on "
+            "them, so they are the first thing to change when a step fails."
+        )
+        _peak_controls(slot, recipe, draft)
     return problems
 
 
@@ -214,7 +318,7 @@ def slot_uploaders(recipe: RecipeSpec, draft: CalibrationDraft) -> list[str]:
     problems: list[str] = []
     for slot in recipe.slots:
         with st.container(border=True):
-            problems.extend(_slot_uploader(slot, draft))
+            problems.extend(_slot_uploader(slot, recipe, draft))
     return problems
 
 
@@ -276,6 +380,27 @@ def preview(recipe: RecipeSpec, draft: CalibrationDraft) -> None:
         if len(notes) > 1 or notes[0] != "single acquisition":
             st.caption(f"{recipe.slot(slot_id).label}: " + " → ".join(notes))
 
+    # What peak finding will actually hand the fit. A count wildly above the
+    # number of reference lines means the crop is too wide or the prominence
+    # too low, and that is far easier to act on here than after a failure.
+    for slot in recipe.slots:
+        report = _peak_report(slot, recipe, draft)
+        if report is None:
+            continue
+        frame, prominence = report
+        unfittable = too_few_points(frame)
+        message = (
+            f"{slot.label}: {len(frame)} peaks found (prominence {prominence:.4g})"
+        )
+        if unfittable.empty:
+            st.caption(message)
+        else:
+            st.caption(
+                f":orange[{message} — {len(unfittable)} of them sit in groups "
+                "too narrow to fit. Widen the peak window or raise the "
+                "prominence.]"
+            )
+
 
 def step_overview(recipe: RecipeSpec, draft: CalibrationDraft) -> None:
     """Show which steps will run, before anything is fitted."""
@@ -296,14 +421,23 @@ def step_overview(recipe: RecipeSpec, draft: CalibrationDraft) -> None:
 
 
 def parameter_controls(recipe: RecipeSpec, draft: CalibrationDraft) -> None:
-    """Per-step overrides for the parameters an engine exposes."""
+    """Per-step overrides for the parameters an engine exposes.
+
+    Peak finding is tuned per instrument in the VAMAS pipeline, so the same
+    levers are offered here rather than buried in the recipe. Without them, an
+    error message advising "raise the prominence" names something the user
+    cannot reach.
+    """
     for step in recipe.steps:
-        tunable = {k: v for k, v in step.params.items() if k in TUNABLES}
-        if not tunable:
+        if not any(k in TUNABLES for k in step.params):
             continue
+
         st.markdown(f"**{step.label}**")
         scope = draft.params.setdefault(step.id, {})
-        for name, current in tunable.items():
+
+        for name, current in step.params.items():
+            if name not in TUNABLES:
+                continue
             title, choices, help_text = TUNABLES[name]
             value = scope.get(name, current)
             index = choices.index(value) if value in choices else 0

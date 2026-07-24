@@ -50,11 +50,11 @@ slots:
       - op: trim
         enabled: true
         label: Crop to the silicon band
-        params: {min: 400, max: 650}
+        params: {min: 420, max: 620}
       - op: baseline
         enabled: true
         label: Remove baseline (SNIP)
-        params: {method: snip, niter: 30}
+        params: {method: snip, niter: 40}
       - op: normalize
         enabled: false
         params: {strategy: minmax}
@@ -87,7 +87,7 @@ steps:
       interpolator_method: poly
       should_fit: false
       prominence_coeff: 3
-      find_kw: {wlen: 100, width: 1}
+      find_kw: {wlen: 200, width: 1}
   - id: laser_zero
     label: Laser zeroing (silicon)
     action: laser_zero
@@ -100,7 +100,7 @@ steps:
       # Fit only around the band being measured. Peak finding over the whole
       # spectrum picks up noise, and each spurious candidate costs a Pearson4
       # fit.
-      window_cm1: 50
+      window_cm1: 100
   - id: y_intensity
     label: Relative intensity (SRM)
     action: y_intensity

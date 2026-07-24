@@ -103,11 +103,28 @@ def test_missing_laser_wavelength_is_reported(neon_spectrum):
         )
 
 
+def _prepared(recipe, slot_id, spectrum):
+    """Run the recipe's declared preprocessing, as the app does before fitting.
+
+    Handing raw silicon to the engine is not a path the UI ever takes -- the
+    crop and baseline removal the recipe declares run first -- so a test that
+    skipped them would be measuring something nobody does.
+    """
+    from spectrastream.preprocess import apply_steps
+
+    steps = [s.model_copy(deep=True) for s in recipe.slot(slot_id).preprocess]
+    prepared, _ = apply_steps(spectrum, steps)
+    return prepared
+
+
 def test_laser_zeroing_runs_and_reports_the_band(neon_spectrum, silicon_spectrum):
     recipe = get_recipe("rc2.ne_si")
     fit = engine_for_recipe(recipe).fit(
         recipe,
-        {"neon": neon_spectrum.spectrum, "si": silicon_spectrum},
+        {
+            "neon": neon_spectrum.spectrum,
+            "si": _prepared(recipe, "si", silicon_spectrum),
+        },
         CalibrationContext(laser_wl_nm=532),
     )
     by_id = {o.step_id: o for o in fit.outcomes()}
@@ -116,22 +133,60 @@ def test_laser_zeroing_runs_and_reports_the_band(neon_spectrum, silicon_spectrum
     assert fit.output_units == "cm-1"
 
 
-def test_zeroing_crops_to_the_band_before_fitting(neon_spectrum, silicon_spectrum):
-    """Peak finding over a whole spectrum picks up noise, and every spurious
-    candidate costs a Pearson4 fit -- enough of them and the run never
-    finishes. Cropping is what keeps this bounded."""
-    import time
-
+def test_zeroing_finds_the_laser_near_its_nominal_wavelength(
+    neon_spectrum, silicon_spectrum
+):
+    """The silicon fixture puts its band at exactly 520.45 cm-1, so a correct
+    zeroing must recover a laser wavelength close to the nominal 532 nm."""
     recipe = get_recipe("rc2.ne_si")
-    started = time.monotonic()
-    engine_for_recipe(recipe).fit(
+    fit = engine_for_recipe(recipe).fit(
         recipe,
-        {"neon": neon_spectrum.spectrum, "si": silicon_spectrum},
+        {
+            "neon": neon_spectrum.spectrum,
+            "si": _prepared(recipe, "si", silicon_spectrum),
+        },
         CalibrationContext(laser_wl_nm=532),
     )
-    elapsed = time.monotonic() - started
-    # Uncropped this took minutes; a generous bound still catches a regression.
-    assert elapsed < 30, f"laser zeroing took {elapsed:.0f}s -- is the crop gone?"
+    zeroing = next(o for o in fit.outcomes() if o.step_id == "laser_zero")
+    laser_nm = float(zeroing.detail.split("laser ")[1].split(" nm")[0])
+    assert abs(laser_nm - 532.0) < 1.0, f"laser came out at {laser_nm} nm"
+
+
+def test_zeroing_crops_to_the_band_before_fitting(
+    monkeypatch, neon_spectrum, silicon_spectrum
+):
+    """Peak finding over a whole spectrum picks up noise, and every spurious
+    candidate costs a Pearson4 fit -- enough of them and the run effectively
+    never finishes. Cropping is what keeps it bounded.
+
+    Asserting on the spectrum handed to the fit rather than on elapsed time:
+    a wall-clock bound measures the machine's load as much as the code.
+    """
+    from ramanchada2.protocols.calibration.calibration_model import CalibrationModel
+
+    seen = {}
+    original = CalibrationModel._derive_model_zero
+
+    def capture(self, *args, **kwargs):
+        spe = kwargs.get("spe")
+        seen["points"] = len(spe.x)
+        seen["span"] = float(max(spe.x)) - float(min(spe.x))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(CalibrationModel, "_derive_model_zero", capture)
+
+    recipe = get_recipe("rc2.ne_si")
+    silicon = _prepared(recipe, "si", silicon_spectrum)
+    engine_for_recipe(recipe).fit(
+        recipe,
+        {"neon": neon_spectrum.spectrum, "si": silicon},
+        CalibrationContext(laser_wl_nm=532),
+    )
+
+    assert seen, "laser zeroing never ran"
+    # The axis is nm by then; +/-100 cm-1 around 520 at 532 nm is a few nm.
+    assert seen["span"] < 20, f"fit saw a {seen['span']:.0f} nm span -- crop gone?"
+    assert seen["points"] < len(silicon.x), "the fit saw the whole spectrum"
 
 
 def test_calibration_applies_to_an_unrelated_target(neon_only_fit, target_spectrum):

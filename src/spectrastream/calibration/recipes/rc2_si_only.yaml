@@ -22,11 +22,11 @@ slots:
       - op: trim
         enabled: true
         label: Crop to the silicon band
-        params: {min: 400, max: 650}
+        params: {min: 420, max: 620}
       - op: baseline
         enabled: true
         label: Remove baseline (SNIP)
-        params: {method: snip, niter: 30}
+        params: {method: snip, niter: 40}
       - op: normalize
         enabled: false
         params: {strategy: minmax}
@@ -40,4 +40,4 @@ steps:
     params:
       si_profile: Pearson4
       should_fit: true
-      window_cm1: 50
+      window_cm1: 100

@@ -24,9 +24,40 @@ X_TITLES = {
 X_TITLE = X_TITLES["cm-1"]
 Y_TITLE = "Intensity (a.u.)"
 
+#: Categorical hues in fixed order, stepped for each surface. Validated for
+#: colourblind separation against the chart surface rather than chosen by eye.
+PALETTE = {
+    "light": ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#4a3aa7"],
+    "dark": ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#9085e9"],
+}
+
+#: Colour follows the entity, not its position in this particular chart. A
+#: silicon trace stays the same colour whether it is drawn beside neon or in a
+#: chart of its own -- which is what went wrong when every single-series chart
+#: got the same blue.
+_SLOTS: dict[str, int] = {}
+
 
 def x_title(units: str | None) -> str:
     return X_TITLES.get(units or "cm-1", str(units))
+
+
+def _mode() -> str:
+    try:
+        return "dark" if st.context.theme.type == "dark" else "light"
+    except Exception:  # noqa: BLE001 - theme is unavailable outside a session
+        return "light"
+
+
+def series_colors(labels: list[str]) -> list[str]:
+    """Stable colours for these labels, in fixed palette order."""
+    palette = PALETTE[_mode()]
+    for label in labels:
+        if label not in _SLOTS:
+            _SLOTS[label] = len(_SLOTS)
+    # Beyond the palette the hues would repeat; that is the point at which a
+    # chart should be split rather than given invented colours.
+    return [palette[_SLOTS[label] % len(palette)] for label in labels]
 
 
 def _decimate(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -55,17 +86,23 @@ def spectrum_chart(
 ) -> alt.Chart:
     """An interactive line chart of one or more spectra."""
     data = spectra_frame(series)
-    single = len(series) <= 1
+    labels = list(series)
+    colors = series_colors(labels)
+
+    # A legend for two or more traces; a single trace is named by its caption
+    # and needs no key. Identity is never carried by colour alone.
+    legend = alt.Legend(orient="top") if len(labels) > 1 else None
     return (
         alt.Chart(data)
-        .mark_line(strokeWidth=1.2, clip=True)
+        .mark_line(strokeWidth=1.6, clip=True)
         .encode(
             x=alt.X("x:Q", title=x_title, scale=alt.Scale(zero=False, nice=False)),
             y=alt.Y("y:Q", title=y_title, scale=alt.Scale(zero=False)),
-            color=(
-                alt.value("#4c78a8")
-                if single
-                else alt.Color("series:N", title=None, legend=alt.Legend(orient="top"))
+            color=alt.Color(
+                "series:N",
+                title=None,
+                legend=legend,
+                scale=alt.Scale(domain=labels, range=colors),
             ),
             tooltip=[
                 alt.Tooltip("series:N", title="Trace"),
