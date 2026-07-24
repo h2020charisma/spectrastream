@@ -15,6 +15,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from spectrastream.merge import MergeStrategy
+from spectrastream.preprocess import PreprocessStep
+
 SpectrumUnits = Literal["cm-1", "nm", "pixel"]
 
 #: What a step contributes to the final calibration. The UI groups steps by
@@ -24,14 +27,28 @@ StepProduct = Literal["x_axis", "x_zero", "y_response"]
 
 
 class SpectrumSlot(BaseModel):
-    """One reference spectrum the recipe may consume."""
+    """One reference input the recipe may consume.
+
+    A slot can take several acquisitions of the same material: replicates to be
+    averaged, or -- for neon especially -- a set of different exposures to be
+    HDR-merged, since neon lines span far more dynamic range than one exposure
+    can capture.
+    """
 
     id: str
     label: str
     material: str | None = None
     required: bool = True
+    #: Default axis units. The user can correct this per upload: nothing in a
+    #: bare data file says whether its x axis is cm-1, nm or pixels.
     units: SpectrumUnits = "cm-1"
     help: str | None = None
+    accept_multiple: bool = False
+    #: How several acquisitions become one. "auto" HDR-merges when the exposure
+    #: times differ and averages when they do not.
+    merge: MergeStrategy = "auto"
+    #: Preprocessing offered for this material, with recipe-chosen defaults.
+    preprocess: list[PreprocessStep] = Field(default_factory=list)
 
     model_config = {"extra": "forbid"}
 

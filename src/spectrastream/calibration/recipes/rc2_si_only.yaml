@@ -15,7 +15,17 @@ slots:
     material: Si
     required: true
     units: cm-1
+    accept_multiple: true
+    merge: auto
     help: Silicon wafer spectrum covering the 520.45 cm-1 band.
+    preprocess:
+      - op: baseline
+        enabled: true
+        label: Remove baseline (SNIP)
+        params: {method: snip, niter: 30}
+      - op: normalize
+        enabled: false
+        params: {strategy: minmax}
 
 steps:
   - id: laser_zero

@@ -10,6 +10,7 @@ purpose: the public wrappers raise ``DeprecationWarning``, and this project runs
 pytest with ``filterwarnings = ["error"]``.
 """
 
+import traceback
 from typing import Any, Iterable, Mapping
 
 import numpy as np
@@ -34,6 +35,7 @@ from .base import (
     CalibrationError,
     Diagnostic,
     StepOutcome,
+    explain,
     merged_params,
 )
 
@@ -402,11 +404,21 @@ class Rc2Engine:
             except CalibrationError:
                 raise
             except Exception as err:  # noqa: BLE001 - reported, not swallowed
+                # Name the step and the spectrum it was working on, and add a
+                # suggestion when the underlying failure is one we recognise.
+                # A bare library message tells the user nothing about which of
+                # their uploads to look at or what to change.
+                sources = ", ".join(recipe.slot(s).label for s in step.inputs)
+                message = f"Step '{step.label}' failed"
+                if sources:
+                    message += f" while processing the {sources}"
+                hint = explain(err)
+                message += f". {hint}" if hint else f": {err}"
                 if not step.optional:
                     raise CalibrationError(
-                        f"Step {step.label!r} failed: {err}"
+                        message, detail=traceback.format_exc()
                     ) from err
-                outcomes.append(StepOutcome(step.id, step.label, "failed", str(err)))
+                outcomes.append(StepOutcome(step.id, step.label, "failed", message))
                 continue
             outcomes.append(outcome)
             diagnostics.extend(step_diags)

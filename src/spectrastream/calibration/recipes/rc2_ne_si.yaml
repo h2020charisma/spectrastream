@@ -17,23 +17,59 @@ slots:
     material: Ne
     required: true
     units: cm-1
-    help: Emission spectrum of a neon lamp taken on this instrument.
+    # Neon lines span far more dynamic range than one exposure can capture, so
+    # several exposures are the norm rather than the exception. Different
+    # exposure times are HDR-merged; equal ones are averaged as replicates.
+    accept_multiple: true
+    merge: auto
+    help: >
+      Emission spectrum of a neon lamp taken on this instrument. Upload several
+      exposures if you have them.
+    preprocess:
+      - op: normalize
+        enabled: false
+        params: {strategy: minmax}
+      - op: trim
+        enabled: false
+
   - id: si
     label: Silicon spectrum
     material: Si
     required: false
     units: cm-1
+    accept_multiple: true
+    merge: auto
     help: >
       Silicon wafer, used to zero the laser line. Skip it and you still get the
       Neon curve, just without an absolute zero.
+    preprocess:
+      # A silicon spectrum is normally baseline-dominated away from its band,
+      # and only the band matters -- the same reasoning as the crop inside the
+      # zeroing step itself.
+      - op: baseline
+        enabled: true
+        label: Remove baseline (SNIP)
+        params: {method: snip, niter: 30}
+      - op: normalize
+        enabled: false
+        params: {strategy: minmax}
+
   - id: srm
     label: Standard reference material spectrum
     material: SRM
     required: false
     units: cm-1
+    accept_multiple: true
+    merge: auto
     help: >
       Measured spectrum of a NIST SRM or calibrated LED source, for relative
       intensity (y) calibration.
+    preprocess:
+      - op: smooth
+        enabled: false
+        params: {method: savgol, window_length: 5, polyorder: 3}
+      - op: trim
+        enabled: false
 
 steps:
   - id: x_curve

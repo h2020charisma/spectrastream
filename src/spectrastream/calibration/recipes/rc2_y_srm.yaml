@@ -14,9 +14,17 @@ slots:
     material: SRM
     required: true
     units: cm-1
+    accept_multiple: true
+    merge: auto
     help: >
-      Measured spectrum of a NIST SRM or calibrated LED source. The certificate
-      is chosen from the laser wavelength unless the recipe names one.
+      Measured spectrum of a NIST SRM or calibrated LED source. Pick which
+      certified material it is under Advanced settings.
+    preprocess:
+      - op: smooth
+        enabled: false
+        params: {method: savgol, window_length: 5, polyorder: 3}
+      - op: trim
+        enabled: false
 
 steps:
   - id: y_intensity

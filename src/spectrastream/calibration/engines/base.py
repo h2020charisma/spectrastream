@@ -90,7 +90,56 @@ class CalibrationEngine(Protocol):
 
 
 class CalibrationError(RuntimeError):
-    """Raised when a recipe cannot be fitted from the given inputs."""
+    """Raised when a recipe cannot be fitted from the given inputs.
+
+    ``detail`` carries the underlying traceback for an expander in the UI. The
+    message itself should say which step failed and what the user can change --
+    a bare library exception leaves someone staring at a screen with no idea
+    which of their uploads caused it.
+    """
+
+    def __init__(self, message: str, detail: str | None = None):
+        super().__init__(message)
+        self.detail = detail
+
+
+#: Recognisable library failures, and what the user can actually do about them.
+#: Matching on message text is brittle, but the alternative is showing a raw
+#: scipy error to a spectroscopist, which helps nobody.
+_HINTS: tuple[tuple[str, str], ...] = (
+    (
+        "must not exceed func output vector length",
+        "a peak group had fewer data points than the fit has parameters. "
+        "Try turning off peak fitting for this step, narrowing the crop so "
+        "noise is excluded, or raising the prominence so fewer, better peaks "
+        "are found.",
+    ),
+    (
+        "No peaks found",
+        "no peaks were found in this spectrum. Check the crop range and the "
+        "axis units, and that the file really is the material this step "
+        "expects.",
+    ),
+    (
+        "x-axes of the spectra should be equal",
+        "the acquisitions are on different x axes and cannot be combined. "
+        "They must come from the same instrument settings.",
+    ),
+    (
+        "Unsupported conversion",
+        "the axis units do not match what this step expects. Check the units "
+        "selected for the uploaded spectrum.",
+    ),
+)
+
+
+def explain(error: Exception) -> str | None:
+    """A usable suggestion for a known failure, or None."""
+    text = str(error)
+    for needle, hint in _HINTS:
+        if needle.lower() in text.lower():
+            return hint
+    return None
 
 
 def merged_params(

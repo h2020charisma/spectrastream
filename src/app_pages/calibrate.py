@@ -22,7 +22,14 @@ from spectrastream.calibration import (
 from spectrastream.profiles import CalibrationRecord, SourceFile
 from ui import profile_store
 from ui.charts import show_spectrum
-from ui.recipe_form import parameter_controls, slot_uploaders, step_overview
+from ui.recipe_form import (
+    certificate_control,
+    parameter_controls,
+    preview,
+    resolve_inputs,
+    slot_uploaders,
+    step_overview,
+)
 from ui.state import get_state
 
 state = get_state()
@@ -111,9 +118,7 @@ if selected_id is None:
     selected_id = recipe_ids[0]
 if selected_id != draft.recipe_id:
     draft.recipe_id = selected_id
-    draft.inputs.clear()
-    draft.params.clear()
-    draft.clear_result()
+    draft.reset()
 
 recipe = get_recipe(draft.recipe_id)
 st.caption(recipe.description.strip())
@@ -124,24 +129,22 @@ st.subheader("Reference spectra")
 for problem in slot_uploaders(recipe, draft):
     st.error(problem, icon=":material/error:")
 
-if draft.inputs:
-    show_spectrum(
-        {
-            f"{recipe.slot(sid).label}": (loaded.spectrum.x, loaded.spectrum.y)
-            for sid, loaded in draft.inputs.items()
-        },
-        height=260,
-    )
+# Merge and preprocess now, so the plot shows what the engine will receive
+# rather than what was uploaded.
+for problem in resolve_inputs(recipe, draft):
+    st.error(problem, icon=":material/error:")
+preview(recipe, draft)
 
 st.subheader("Steps")
 step_overview(recipe, draft)
 
 with st.expander("Advanced settings", icon=":material/tune:"):
+    certificate_control(recipe, draft, optical_path.laser_wl_nm)
     parameter_controls(recipe, draft)
 
 # --- fit --------------------------------------------------------------------
 
-missing = recipe.missing_required_slots(set(draft.inputs))
+missing = recipe.missing_required_slots(draft.available_slots())
 if st.button(
     "Derive calibration",
     type="primary",
@@ -156,16 +159,15 @@ if st.button(
     with st.status("Deriving calibration…", expanded=False) as status:
         try:
             draft.fitted = engine.fit(
-                recipe,
-                {sid: loaded.spectrum for sid, loaded in draft.inputs.items()},
-                context,
-                params=draft.params,
+                recipe, draft.engine_inputs(), context, params=draft.params
             )
             draft.error = None
+            draft.detail = None
             status.update(label="Calibration derived", state="complete")
         except CalibrationError as err:
             draft.fitted = None
             draft.error = str(err)
+            draft.detail = getattr(err, "detail", None)
             status.update(label="Could not derive a calibration", state="error")
 
 if missing:
@@ -174,6 +176,9 @@ if missing:
 
 if draft.error:
     st.error(draft.error, icon=":material/error:")
+    if draft.detail:
+        with st.expander("Technical detail", icon=":material/bug_report:"):
+            st.code(draft.detail)
 
 # --- results ----------------------------------------------------------------
 
@@ -196,12 +201,13 @@ for outcome in fitted.outcomes():
         st.markdown(f":material/error: {outcome.label} — :red[{outcome.detail}]")
 
 # Show the effect on whichever reference spectrum drove the first step.
-primary = next(iter(draft.inputs.values()), None)
-if primary is not None:
-    corrected = fitted.apply(primary.spectrum, spe_units=primary.units)
+primary_id = next(iter(draft.available_slots()), None)
+if primary_id is not None:
+    entry = draft.slots[primary_id]
+    corrected = fitted.apply(entry.merged, spe_units=entry.units)
     show_spectrum(
         {
-            "Before": (primary.spectrum.x, primary.spectrum.y),
+            "Before": (entry.merged.x, entry.merged.y),
             "After": (corrected.x, corrected.y),
         },
         height=280,
@@ -240,8 +246,8 @@ if saved:
         engine_id=fitted.engine_id,
         laser_wl_nm=optical_path.laser_wl_nm,
         sources=[
-            SourceFile(slot=sid, filename=loaded.filename, sha256=loaded.sha256)
-            for sid, loaded in draft.inputs.items()
+            SourceFile(slot=sid, filename=item.filename, sha256=item.sha256)
+            for sid, item in draft.source_files()
         ],
         model=fitted.to_dict(),
         steps=[

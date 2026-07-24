@@ -23,15 +23,30 @@ from spectrastream.calibration import CalibrationError, get_engine
 from spectrastream.cwa import CwaExportError, export_x_files, x_calibration_model
 from spectrastream.ingest import IngestError, load_spectrum
 from spectrastream.nexus import missing_minimum, nexus_filename, spectrum_to_nexus
-from ui.charts import show_spectrum
+from ui.charts import show_spectrum, x_title
 from ui.state import get_state
 
 state = get_state()
 
-uploaded = st.file_uploader(
+upload_row = st.columns([2, 1])
+uploaded = upload_row[0].file_uploader(
     "Spectrum file",
     accept_multiple_files=False,
     help="Any format ramanchada2 can read: .spc, .txt, .csv, .wdf, .cha and more.",
+)
+
+# Asked here, not further down: nothing in a bare data file says whether its x
+# axis is Raman shift, wavelength or detector pixels, and guessing would mean
+# plotting and exporting it under the wrong label.
+unit_options = list(UNIT_LABELS)
+state.acquisition.units = upload_row[1].selectbox(
+    "X axis units",
+    options=unit_options,
+    index=unit_options.index(state.acquisition.units)
+    if state.acquisition.units in unit_options
+    else 0,
+    format_func=lambda u: UNIT_LABELS[u],
+    help="What the numbers on the x axis actually are.",
 )
 
 if uploaded is not None:
@@ -48,6 +63,9 @@ if uploaded is not None:
             # suggestions shown in editable fields, not commitments -- a header
             # can be stale, and the contributor is the one who knows.
             fields, guessed_wl = guess_from_metadata(state.target.source_metadata)
+            # Keep the units the user just chose: they describe the file, and
+            # rebuilding the acquisition from guesses would silently reset them.
+            fields.setdefault("units", state.acquisition.units)
             state.acquisition = Acquisition(**fields)
             state.guessed_fields = set(fields) | (
                 {"laser_wl_nm"} if guessed_wl else set()
@@ -159,7 +177,7 @@ if apply_calibration and calibration_record is not None:
     try:
         engine = get_engine(calibration_record.engine_id)
         fitted = engine.load(calibration_record.model)
-        calibrated = fitted.apply(target.spectrum, spe_units=target.units)
+        calibrated = fitted.apply(target.spectrum, spe_units=state.acquisition.units)
     except (CalibrationError, KeyError, ValueError) as err:
         calibrated = None
         calibration_record = None
@@ -172,15 +190,20 @@ if apply_calibration and calibration_record is not None:
 
 # --- chart ------------------------------------------------------------------
 
+axis_units = state.acquisition.units
 if calibrated is not None:
     show_spectrum(
         {
             "As measured": (target.spectrum.x, target.spectrum.y),
             "Calibrated": (calibrated.x, calibrated.y),
-        }
+        },
+        x_title=x_title(axis_units),
     )
 else:
-    show_spectrum({target.filename: (target.spectrum.x, target.spectrum.y)})
+    show_spectrum(
+        {target.filename: (target.spectrum.x, target.spectrum.y)},
+        x_title=x_title(axis_units),
+    )
 
 
 # --- how it was measured ----------------------------------------------------
@@ -203,12 +226,11 @@ if state.guessed_fields:
     )
 
 core = st.columns(3)
-unit_options = list(UNIT_LABELS)
-acq.units = core[0].selectbox(
+core[0].text_input(
     "X axis units",
-    options=unit_options,
-    index=unit_options.index(acq.units) if acq.units in unit_options else 0,
-    format_func=lambda u: UNIT_LABELS[u],
+    value=UNIT_LABELS[acq.units],
+    disabled=True,
+    help="Set with the file uploader above.",
 )
 
 # The optical path is authoritative when one is chosen -- the wavelength is a

@@ -131,7 +131,10 @@ def test_unavailable_storage_is_surfaced_not_silent():
     assert any("local storage" in w.value for w in page.warning)
 
 
-def test_convert_page_waits_for_a_spectrum_before_asking_anything_else():
+def test_units_are_asked_alongside_the_uploader():
+    """Nothing in a data file says whether x is cm-1, nm or pixels, so the
+    question has to come with the file -- not after it has been plotted and
+    labelled under a guess."""
     at = AppTest.from_file(APP)
     _answer_browser(at, text=None)
     at.run(timeout=60)
@@ -139,7 +142,10 @@ def test_convert_page_waits_for_a_spectrum_before_asking_anything_else():
     page = _goto(at, "src/app_pages/convert.py")
     assert not page.exception
     assert page.file_uploader
-    assert not page.selectbox, "nothing should be asked before a file is loaded"
+
+    units = [s for s in page.selectbox if "units" in s.label.lower()]
+    assert units, "the units question is missing"
+    assert len(page.selectbox) == 1, "nothing else should be asked before a file"
 
 
 def test_convert_page_uses_the_optical_path_wavelength(target_spectrum):

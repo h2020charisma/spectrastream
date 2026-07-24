@@ -14,8 +14,19 @@ import streamlit as st
 #: to tens of thousands of points and Vega chokes long before the science does.
 MAX_PLOT_POINTS = 6000
 
-X_TITLE = "Raman shift (cm⁻¹)"
+#: Axis titles per unit. Labelling a nm or pixel axis "Raman shift" would be a
+#: quiet lie, and the units are exactly what a reader needs to judge the plot.
+X_TITLES = {
+    "cm-1": "Raman shift (cm⁻¹)",
+    "nm": "Wavelength (nm)",
+    "pixel": "Detector pixel",
+}
+X_TITLE = X_TITLES["cm-1"]
 Y_TITLE = "Intensity (a.u.)"
+
+
+def x_title(units: str | None) -> str:
+    return X_TITLES.get(units or "cm-1", str(units))
 
 
 def _decimate(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
