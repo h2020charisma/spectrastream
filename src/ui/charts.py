@@ -76,9 +76,7 @@ def show_spectrum(
 ) -> None:
     if not series:
         return
-    st.altair_chart(
-        spectrum_chart(series, x_title, y_title, height), width="stretch"
-    )
+    st.altair_chart(spectrum_chart(series, x_title, y_title, height), width="stretch")
     total = sum(len(x) for x, _ in series.values())
     if caption:
         st.caption(caption)

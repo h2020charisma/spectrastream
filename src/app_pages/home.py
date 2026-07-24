@@ -20,8 +20,7 @@ with left:
     with st.container(border=True):
         st.markdown("#### :material/upload_file: 1 · Convert")
         st.markdown(
-            "Drop in a spectrum. Download NeXus straight away — no metadata "
-            "required."
+            "Drop in a spectrum. Download NeXus straight away — no metadata required."
         )
 with middle:
     with st.container(border=True):
@@ -53,8 +52,7 @@ st.markdown(
 
 if state.library.profiles:
     st.caption(
-        f"{len(state.library.profiles)} instrument profile(s) saved in this "
-        "browser."
+        f"{len(state.library.profiles)} instrument profile(s) saved in this browser."
     )
 
 with st.expander("About this alpha", icon=":material/info:"):

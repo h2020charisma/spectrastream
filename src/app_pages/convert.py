@@ -179,9 +179,7 @@ buttons.download_button(
 )
 
 if calibrated is None:
-    st.caption(
-        "Exported without calibration — still a valid, shareable NeXus record."
-    )
+    st.caption("Exported without calibration — still a valid, shareable NeXus record.")
 else:
     st.caption(f"Exported with calibration “{calibration_record.label}” applied.")
 

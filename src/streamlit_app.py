@@ -14,9 +14,14 @@ st.set_page_config(
     layout="wide",
 )
 
-from ui.state import get_state  # noqa: E402  - must follow set_page_config
+from ui import profile_store  # noqa: E402  - must follow set_page_config
+from ui.state import get_state  # noqa: E402
 
 state = get_state()
+
+# Mount the browser-storage bridge before any page runs, so every page sees a
+# hydrated profile library. It renders nothing.
+profile_store.sync(state)
 
 pages = [
     st.Page(
