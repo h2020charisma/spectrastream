@@ -61,7 +61,13 @@ state.acquisition.units = upload_row[1].selectbox(
     help="What the numbers on the x axis actually are.",
 )
 
-if uploaded is not None:
+if uploaded is None:
+    # Removing the file removes the spectrum: leaving the old one on screen
+    # would show a plot and offer downloads for a file no longer chosen.
+    state.target = None
+    state.guessed_fields = set()
+    state.guessed_laser_wl_nm = None
+else:
     payload = uploaded.getvalue()
     already = state.target
     if already is None or already.filename != uploaded.name:
@@ -255,7 +261,10 @@ if apply_calibration and calibration_record is not None:
     try:
         engine = get_engine(calibration_record.engine_id)
         fitted = engine.load(calibration_record.model)
-        calibrated = fitted.apply(target.spectrum, spe_units=state.acquisition.units)
+        # The preprocessed spectrum, not the raw one: otherwise cropping
+        # and baseline removal would be discarded the moment a calibration
+        # was applied, which is worse than not offering them.
+        calibrated = fitted.apply(working_spectrum, spe_units=state.acquisition.units)
     except (CalibrationError, KeyError, ValueError) as err:
         calibrated = None
         calibration_record = None
@@ -428,6 +437,11 @@ else:
             acquisition=acq,
             laser_wl_nm=effective_wl,
             source_metadata=target.source_metadata,
+            extra_metadata=(
+                {"preprocessing": " -> ".join(target_applied)}
+                if target_applied
+                else None
+            ),
         )
     except Exception as err:  # noqa: BLE001 - the floor must explain itself
         st.error(f"NeXus export failed: {err}", icon=":material/error:")

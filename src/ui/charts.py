@@ -172,7 +172,16 @@ def show_twin(
     right_label, (rx, ry) = right
     colors = series_colors([left_label, right_label])
 
-    def _one(label, x, y, color, axis):
+    def _one(label, x, y, color, orient):
+        # Each y axis is titled and coloured to match its own line: with two
+        # independent scales a shared legend cannot say which axis a trace
+        # belongs to, and that is the thing a reader needs.
+        axis = alt.Axis(
+            orient=orient,
+            titleColor=color,
+            labelColor=color,
+            tickColor=color,
+        )
         frame = spectra_frame({label: (x, y)})
         return (
             alt.Chart(frame)
@@ -190,8 +199,8 @@ def show_twin(
 
     chart = (
         alt.layer(
-            _one(left_label, lx, ly, colors[0], alt.Axis(orient="left")),
-            _one(right_label, rx, ry, colors[1], alt.Axis(orient="right")),
+            _one(left_label, lx, ly, colors[0], "left"),
+            _one(right_label, rx, ry, colors[1], "right"),
         )
         .resolve_scale(y="independent")
         .properties(height=height)

@@ -148,30 +148,25 @@ def test_units_are_asked_alongside_the_uploader():
     assert len(page.selectbox) == 1, "nothing else should be asked before a file"
 
 
-def test_convert_page_uses_the_optical_path_wavelength(target_spectrum):
-    """Bypass the uploader (AppTest cannot drive it) and check the page picks
-    the wavelength up from the path rather than demanding it again."""
+def test_removing_the_file_clears_the_spectrum(target_spectrum):
+    """A cleared uploader must clear the plot and the downloads with it.
+
+    Leaving the previous spectrum on screen showed a chart and offered a NeXus
+    export for a file the user had just removed. This also means the page can
+    no longer be driven by seeding state.target, which is why the wavelength
+    behaviour is covered by test_units_flow instead.
+    """
     at = AppTest.from_file(APP)
     _answer_browser(at, text=None)
     at.run(timeout=60)
 
-    profile = InstrumentProfile(name="Lab rig")
-    profile.add_optical_path(OpticalPath(op_id="OP1", laser_wl_nm=532))
     state = _state(at)
-    state.library.upsert(profile)
-    state.set_active_profile(profile.id)
     state.target = target_spectrum
 
     page = _goto(at, "src/app_pages/convert.py")
     assert not page.exception
-
-    wavelength = [n for n in page.number_input if "wavelength" in n.label.lower()]
-    assert wavelength, "no wavelength field rendered"
-    assert wavelength[0].value == 532
-    assert wavelength[0].disabled, "the path is authoritative; do not invite edits"
-
-    # Nothing is missing, so the NeXus download is offered.
-    assert any("NeXus" in b.label for b in page.download_button)
+    assert _state(page).target is None, "the removed spectrum was kept"
+    assert not page.download_button, "downloads offered for a removed file"
 
 
 def test_calibrate_page_reaches_the_protocol_choice_for_a_real_path():

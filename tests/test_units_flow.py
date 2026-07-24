@@ -167,3 +167,45 @@ def test_the_srm_crop_defaults_to_the_certified_range():
     # Slots with no certificate have no certified range to offer.
     assert certified_range(recipe, draft, "neon", 532) is None
     assert certified_range(recipe, draft, "srm", None) is None
+
+
+def test_target_preprocessing_reaches_the_calibration_and_the_export(
+    target_spectrum, neon_spectrum
+):
+    """Preprocessing must not be decorative.
+
+    The convert page cropped and baselined the target for display, then applied
+    the calibration to the *raw* spectrum -- so with a calibration selected the
+    preprocessing was silently discarded.
+    """
+    import numpy as np
+
+    from spectrastream.calibration import (
+        CalibrationContext,
+        engine_for_recipe,
+        get_recipe,
+    )
+    from spectrastream.preprocess import PreprocessStep, apply_steps
+
+    steps = [
+        PreprocessStep(op="trim", enabled=True, params={"min": 400, "max": 1800}),
+    ]
+    working, applied = apply_steps(target_spectrum.spectrum, steps)
+    assert applied == ["Crop"]
+    assert len(working.x) < len(target_spectrum.spectrum.x)
+
+    recipe = get_recipe("rc2.ne_si")
+    fit = engine_for_recipe(recipe).fit(
+        recipe,
+        {"neon": neon_spectrum.spectrum},
+        CalibrationContext(laser_wl_nm=532),
+    )
+
+    from_working = fit.apply(working, spe_units="cm-1")
+    from_raw = fit.apply(target_spectrum.spectrum, spe_units="cm-1")
+
+    # Calibrating the preprocessed spectrum keeps the crop; calibrating the raw
+    # one silently throws it away.
+    assert len(from_working.x) == len(working.x)
+    assert len(from_raw.x) != len(from_working.x)
+    assert np.nanmin(from_working.x) > np.nanmin(from_raw.x)
