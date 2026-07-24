@@ -11,6 +11,7 @@ from typing import Any
 
 import streamlit as st
 
+from spectrastream.acquisition import Acquisition
 from spectrastream.calibration.engines.base import FittedCalibration
 from spectrastream.ingest import LoadedSpectrum
 from spectrastream.profiles import InstrumentProfile, ProfileLibrary
@@ -44,6 +45,9 @@ class AppState:
     storage_persistent: bool = True
     active_profile_id: str | None = None
     target: LoadedSpectrum | None = None
+    #: How the target spectrum was measured. Persists across page switches so
+    #: a user does not retype it after wandering off to edit a profile.
+    acquisition: Acquisition = field(default_factory=Acquisition)
     draft: CalibrationDraft = field(default_factory=CalibrationDraft)
 
     @property

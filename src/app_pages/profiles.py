@@ -55,17 +55,38 @@ def edit_profile(profile: InstrumentProfile | None):
             help="Leave at 0 if unknown. Needed for calibration, not for export.",
         )
 
-        with st.expander("Optical details (all optional)"):
+        # Field names follow the CHARISMA/VAMAS reporting template front
+        # sheet, so a profile and a round-robin template describe an
+        # instrument the same way.
+        with st.expander("Optical path (all optional)"):
             cols = st.columns(2)
             device_type = cols[0].text_input(
                 "Device type", value=draft.device_type or ""
             )
             numerical_aperture = cols[1].text_input(
-                "Numerical aperture", value=draft.numerical_aperture or ""
+                "Collection optics", value=draft.numerical_aperture or ""
             )
             cols = st.columns(2)
-            grating = cols[0].text_input("Grating", value=draft.grating or "")
-            slit = cols[1].text_input("Slit", value=draft.slit or "")
+            grating = cols[0].text_input("Grating (l/mm)", value=draft.grating or "")
+            slit = cols[1].text_input("Slit size (µm)", value=draft.slit or "")
+            cols = st.columns(2)
+            pin_hole_size = cols[0].text_input(
+                "Pin hole size", value=draft.pin_hole_size or ""
+            )
+            fibre = cols[1].text_input(
+                "Collection fibre diameter (mm)",
+                value=draft.collection_fibre_diameter_mm or "",
+            )
+            cols = st.columns(2)
+            max_power = cols[0].number_input(
+                "Max laser power (mW)",
+                value=float(draft.max_laser_power_mw or 0.0),
+                step=1.0,
+            )
+            spectral_range = cols[1].text_input(
+                "Spectral range / scanning mode", value=draft.spectral_range or ""
+            )
+            profile_notes = st.text_area("Notes", value=draft.notes or "", height=68)
 
         submitted = st.form_submit_button(
             "Create profile" if creating else "Save changes",
@@ -86,6 +107,11 @@ def edit_profile(profile: InstrumentProfile | None):
         draft.numerical_aperture = numerical_aperture.strip() or None
         draft.grating = grating.strip() or None
         draft.slit = slit.strip() or None
+        draft.pin_hole_size = pin_hole_size.strip() or None
+        draft.collection_fibre_diameter_mm = fibre.strip() or None
+        draft.max_laser_power_mw = float(max_power) if max_power else None
+        draft.spectral_range = spectral_range.strip() or None
+        draft.notes = profile_notes.strip() or None
 
         library.upsert(draft)
         state.set_active_profile(draft.id)
@@ -115,6 +141,11 @@ else:
             if profile.id == state.active_profile_id:
                 top.badge("Selected", icon=":material/check:", color="green")
             st.caption(profile.describe())
+            if profile.laser_wl_nm is None:
+                st.caption(
+                    ":orange[No laser wavelength — needed to export NeXus "
+                    "and to derive a calibration.]"
+                )
 
             if profile.calibrations:
                 for record in profile.calibrations:

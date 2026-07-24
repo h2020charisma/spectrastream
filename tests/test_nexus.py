@@ -13,10 +13,12 @@ import nexusformat.nexus.tree as nx
 import numpy as np
 import pytest
 
+from spectrastream.acquisition import Acquisition
 from spectrastream.nexus import (
     AXIS_NAME,
     SIGNAL_NAME,
     build_metadata,
+    missing_minimum,
     nexus_filename,
     spectrum_to_nexus,
 )
@@ -48,9 +50,10 @@ def _spectrum_group(root):
     return group[list(group)[0]]
 
 
-def test_floor_writes_valid_nexus_with_no_metadata_at_all(target_spectrum):
-    """The whole point: someone uploads a file and gets FAIR data back, with
-    no profile, no calibration and nothing filled in."""
+def test_writer_never_refuses_for_missing_metadata(target_spectrum):
+    """The writer itself imposes no minimum -- callers decide whether an
+    under-described record is worth writing (see missing_minimum). Keeping the
+    check out of here is what lets the core stay usable from a notebook."""
     data = spectrum_to_nexus(target_spectrum.spectrum)
     assert data[:8] == b"\x89HDF\r\n\x1a\n"
 
@@ -117,6 +120,63 @@ def test_metadata_is_never_none():
     assert isinstance(meta, dict)
     assert meta["@signal"] == SIGNAL_NAME
     assert meta["calibration_applied"] == "false"
+
+
+def test_laser_wavelength_is_the_one_thing_demanded():
+    """Units and excitation wavelength are what make the numbers mean
+    something; everything else genuinely is optional."""
+    assert missing_minimum(None) == ["laser wavelength"]
+    assert missing_minimum(InstrumentProfile(name="unspecified rig")) == [
+        "laser wavelength"
+    ]
+    assert missing_minimum(InstrumentProfile(name="x", laser_wl_nm=532)) == []
+    # Supplied directly rather than via a profile.
+    assert missing_minimum(None, laser_wl_nm=785) == []
+
+
+def test_acquisition_fields_reach_the_record(target_spectrum):
+    acq = Acquisition(
+        sample="polystyrene",
+        units="cm-1",
+        op_id="OP1",
+        integration_time_ms=30000,
+        power_meter_mw=0.11,
+        temperature_c=22,
+        background="Background_Not_Subtracted",
+        overexposed=False,
+    )
+    data = spectrum_to_nexus(
+        target_spectrum.spectrum,
+        profile=InstrumentProfile(name="rig", laser_wl_nm=532),
+        acquisition=acq,
+    )
+    with _read_back(data) as (_, tree):
+        assert "OP1" in tree
+        assert "polystyrene" in tree
+        assert "Background_Not_Subtracted" in tree
+
+
+def test_acquisition_uses_the_keys_pyambit_maps_to_nexus_paths():
+    """Spelled to hit instrument/detector/count_time rather than the generic
+    /parameters bucket."""
+    meta = Acquisition(integration_time_ms=30000).as_metadata()
+    assert "integration time" in meta
+
+    profile_meta = InstrumentProfile(
+        name="x", grating="600", pin_hole_size="50"
+    ).instrument_metadata()
+    assert "grating" in profile_meta
+    assert "pin hole size" in profile_meta
+
+
+def test_acquisition_outranks_the_file_header():
+    """It describes this measurement; the header describes whatever was saved."""
+    meta = build_metadata(
+        profile=InstrumentProfile(name="p", laser_wl_nm=532),
+        source_metadata={"sample": "stale value"},
+        acquisition=Acquisition(sample="the real one"),
+    )
+    assert meta["sample"] == "the real one"
 
 
 def test_empty_metadata_values_are_dropped_not_blanked():

@@ -1,17 +1,23 @@
 """The floor: upload a spectrum, download NeXus.
 
-Everything on this page beyond the uploader is optional. The download button is
-live the moment a file parses, before any profile is chosen or any calibration
-applied -- the value proposition is that this never fails to return something
-useful.
+Two things are required and everything else is optional. The axis units and the
+excitation wavelength are not metadata *about* the data -- they are what makes
+the numbers mean anything, and a record missing them cannot be compared with
+anything else. No profile, no calibration and no other field is needed.
+
+Optional fields follow the CHARISMA/VAMAS Raman reporting template, so a
+spectrum described here carries the same facts as one described for a
+round-robin.
 """
 
 import streamlit as st
 from ramanchada2.io.output.write_csv import write_csv as io_write_csv
 
+from spectrastream.acquisition import BACKGROUND_CHOICES, UNIT_LABELS
 from spectrastream.calibration import CalibrationError, get_engine
+from spectrastream.cwa import CwaExportError, export_x_files, x_calibration_model
 from spectrastream.ingest import IngestError, load_spectrum
-from spectrastream.nexus import nexus_filename, spectrum_to_nexus
+from spectrastream.nexus import missing_minimum, nexus_filename, spectrum_to_nexus
 from ui.charts import show_spectrum
 from ui.state import get_state
 
@@ -37,8 +43,8 @@ target = state.target
 
 if target is None:
     st.info(
-        "Upload a spectrum to begin. Nothing else is required — you can "
-        "download a NeXus file straight away.",
+        "Upload a spectrum to begin. All you need beyond the file itself is "
+        "its x axis units and the laser wavelength.",
         icon=":material/upload:",
     )
     st.stop()
@@ -85,6 +91,7 @@ if not profiles:
 
 calibration_record = None
 calibrated = None
+fitted = None
 apply_calibration = False
 
 if profile is not None and profile.calibrations:
@@ -134,31 +141,96 @@ else:
     show_spectrum({target.filename: (target.spectrum.x, target.spectrum.y)})
 
 
+# --- how it was measured ----------------------------------------------------
+
+st.subheader("Measurement")
+st.caption(
+    "Two of these are not optional: the units say whether the numbers are "
+    "Raman shifts or wavelengths, and the excitation wavelength is what lets "
+    "anyone convert between them or compare your record with another. The "
+    "rest follow the CHARISMA/VAMAS reporting template — fill in what you know."
+)
+
+acq = state.acquisition
+
+core = st.columns(3)
+unit_options = list(UNIT_LABELS)
+acq.units = core[0].selectbox(
+    "X axis units",
+    options=unit_options,
+    index=unit_options.index(acq.units) if acq.units in unit_options else 0,
+    format_func=lambda u: UNIT_LABELS[u],
+)
+profile_wl = profile.laser_wl_nm if profile else None
+laser_wl = core[1].number_input(
+    "Laser wavelength (nm)",
+    value=float(profile_wl) if profile_wl else 0.0,
+    step=1.0,
+    format="%.1f",
+    help=(
+        "Taken from the instrument profile when one is selected. Set it on the "
+        "profile to avoid retyping it."
+    ),
+    disabled=profile_wl is not None,
+)
+acq.sample = (
+    core[2].text_input("Sample", value=acq.sample or "", placeholder="e.g. polystyrene")
+    or None
+)
+
+with st.expander("More measurement detail (optional)", icon=":material/notes:"):
+    row = st.columns(3)
+    acq.op_id = (
+        row[0].text_input("Operating procedure ID", value=acq.op_id or "") or None
+    )
+    acq.integration_time_ms = (
+        row[1].number_input("Integration time (ms)", value=0.0, step=100.0) or None
+    )
+    acq.power_meter_mw = (
+        row[2].number_input("Power at sample (mW)", value=0.0, step=0.1) or None
+    )
+
+    row = st.columns(3)
+    acq.laser_power_percent = (
+        row[0].number_input("Laser power (%)", value=0.0, step=1.0) or None
+    )
+    acq.temperature_c = (
+        row[1].number_input("Temperature (°C)", value=0.0, step=1.0) or None
+    )
+    acq.background = (
+        row[2].selectbox("Background", options=[None] + BACKGROUND_CHOICES) or None
+    )
+
+effective_wl = profile_wl if profile_wl is not None else (laser_wl or None)
+missing = missing_minimum(profile, effective_wl)
+
+
 # --- downloads --------------------------------------------------------------
 
 st.subheader("Download")
 
 export_spectrum = calibrated if calibrated is not None else target.spectrum
-sample_name = st.text_input(
-    "Sample name (optional)",
-    value="",
-    placeholder="e.g. polystyrene",
-    help="Recorded in the NeXus file. Left blank it is exported as 'unknown'.",
-)
+nexus_bytes = None
 
-try:
-    nexus_bytes = spectrum_to_nexus(
-        export_spectrum,
-        profile=profile,
-        calibration=calibration_record,
-        sample=sample_name or None,
-        original_filename=target.filename,
-        units=target.units,
-        source_metadata=target.source_metadata,
+if missing:
+    st.info(
+        f"Add the {' and '.join(missing)} to export NeXus. Everything else on "
+        "this page is optional.",
+        icon=":material/edit_note:",
     )
-except Exception as err:  # noqa: BLE001 - the floor must explain itself
-    nexus_bytes = None
-    st.error(f"NeXus export failed: {err}", icon=":material/error:")
+else:
+    try:
+        nexus_bytes = spectrum_to_nexus(
+            export_spectrum,
+            profile=profile,
+            calibration=calibration_record,
+            original_filename=target.filename,
+            acquisition=acq,
+            laser_wl_nm=effective_wl,
+            source_metadata=target.source_metadata,
+        )
+    except Exception as err:  # noqa: BLE001 - the floor must explain itself
+        st.error(f"NeXus export failed: {err}", icon=":material/error:")
 
 buttons = st.container(horizontal=True)
 if nexus_bytes is not None:
@@ -182,6 +254,46 @@ if calibrated is None:
     st.caption("Exported without calibration — still a valid, shareable NeXus record.")
 else:
     st.caption(f"Exported with calibration “{calibration_record.label}” applied.")
+
+    # The interoperable form of the calibration itself: a curve of points plus
+    # metadata that reads without ramanchada2, per CWA 18133:2024 section 8.
+    calmodel = x_calibration_model(fitted)
+    if calmodel is not None:
+        try:
+            csv_text, json_text = export_x_files(
+                calmodel,
+                spectral_range=target.x_range,
+                metadata={
+                    "instrument": profile.describe() if profile else "",
+                    "profile": profile.name if profile else "",
+                    "recipe": calibration_record.recipe_id,
+                },
+            )
+        except CwaExportError:
+            pass
+        else:
+            with st.expander(
+                "Calibration file (CWA 18133 §8)", icon=":material/description:"
+            ):
+                st.caption(
+                    "The calibration itself, as a curve of points plus "
+                    "metadata — readable without ramanchada2."
+                )
+                cwa = st.container(horizontal=True)
+                cwa.download_button(
+                    "Curve (CSV)",
+                    data=csv_text,
+                    file_name="calibration.csv",
+                    mime="text/csv",
+                    icon=":material/download:",
+                )
+                cwa.download_button(
+                    "Metadata (JSON)",
+                    data=json_text,
+                    file_name="calibration.json",
+                    mime="application/json",
+                    icon=":material/download:",
+                )
 
 with st.expander("Metadata read from the file", icon=":material/description:"):
     if target.source_metadata:

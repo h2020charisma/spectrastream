@@ -42,11 +42,31 @@ def _clean(value: Any) -> str | None:
     return text or None
 
 
+def missing_minimum(
+    profile: InstrumentProfile | None,
+    laser_wl_nm: float | None = None,
+) -> list[str]:
+    """What still has to be supplied before a record is worth writing.
+
+    The axis units and the laser wavelength are not optional extras. Units
+    decide whether the numbers are Raman shifts or wavelengths, and without the
+    excitation wavelength one cannot convert between them or compare the record
+    with anything else. Everything beyond these two genuinely is optional.
+    """
+    if laser_wl_nm is None and profile is not None:
+        laser_wl_nm = profile.laser_wl_nm
+    missing = []
+    if not laser_wl_nm:
+        missing.append("laser wavelength")
+    return missing
+
+
 def build_metadata(
     profile: InstrumentProfile | None = None,
     source_metadata: Mapping[str, Any] | None = None,
     calibration: CalibrationRecord | None = None,
     original_filename: str | None = None,
+    acquisition: Any | None = None,
     extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble the ``meta`` dict handed to pyambit.
@@ -69,6 +89,11 @@ def build_metadata(
         meta.update(profile.instrument_metadata())
         if profile.name:
             meta["instrument_profile"] = profile.name
+
+    # Acquisition detail outranks both: it describes this measurement, not the
+    # instrument in general or whatever the file header happened to carry.
+    if acquisition is not None:
+        meta.update(acquisition.as_metadata())
 
     if original_filename:
         meta["source_file"] = original_filename
@@ -102,28 +127,50 @@ def spectrum_to_nexus(
     original_filename: str | None = None,
     provider: str | None = None,
     investigation: str | None = None,
-    units: str = "cm-1",
+    units: str | None = None,
+    acquisition: Any | None = None,
+    laser_wl_nm: float | None = None,
     source_metadata: Mapping[str, Any] | None = None,
     extra_metadata: Mapping[str, Any] | None = None,
     output_filename: str | None = None,
 ) -> bytes:
     """Serialise ``spe`` as a NXraman file and return its bytes.
 
-    Every argument beyond the spectrum is optional.
+    Beyond the spectrum itself, only the axis units and the laser wavelength
+    really matter -- see :func:`missing_minimum`. Everything else is optional
+    and simply enriches the record. Nothing raises for missing metadata; it is
+    the caller's job to decide whether an under-described record is worth
+    writing.
     """
-    sample_name = _clean(sample) or DEFAULT_SAMPLE
-    provider_name = _clean(provider) or DEFAULT_PROVIDER
-    investigation_name = _clean(investigation) or DEFAULT_INVESTIGATION
+    if units is None:
+        units = getattr(acquisition, "units", None) or "cm-1"
+    if laser_wl_nm is None:
+        laser_wl_nm = profile.laser_wl_nm if profile else None
+
+    sample_name = (
+        _clean(sample) or _clean(getattr(acquisition, "sample", None)) or DEFAULT_SAMPLE
+    )
+    provider_name = (
+        _clean(provider)
+        or _clean(getattr(acquisition, "provider", None))
+        or DEFAULT_PROVIDER
+    )
+    investigation_name = (
+        _clean(investigation)
+        or _clean(getattr(acquisition, "investigation", None))
+        or DEFAULT_INVESTIGATION
+    )
 
     vendor = _clean(profile.vendor) if profile else None
     model = _clean(profile.model) if profile else None
-    laser_wl = profile.laser_wl_nm if profile else None
+    laser_wl = laser_wl_nm
 
     meta = build_metadata(
         profile=profile,
         source_metadata=source_metadata,
         calibration=calibration,
         original_filename=original_filename,
+        acquisition=acquisition,
         extra=extra_metadata,
     )
 

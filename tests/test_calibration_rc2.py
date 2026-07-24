@@ -103,6 +103,37 @@ def test_missing_laser_wavelength_is_reported(neon_spectrum):
         )
 
 
+def test_laser_zeroing_runs_and_reports_the_band(neon_spectrum, silicon_spectrum):
+    recipe = get_recipe("rc2.ne_si")
+    fit = engine_for_recipe(recipe).fit(
+        recipe,
+        {"neon": neon_spectrum.spectrum, "si": silicon_spectrum},
+        CalibrationContext(laser_wl_nm=532),
+    )
+    by_id = {o.step_id: o for o in fit.outcomes()}
+    assert by_id["laser_zero"].status == "applied"
+    assert "laser" in by_id["laser_zero"].detail
+    assert fit.output_units == "cm-1"
+
+
+def test_zeroing_crops_to_the_band_before_fitting(neon_spectrum, silicon_spectrum):
+    """Peak finding over a whole spectrum picks up noise, and every spurious
+    candidate costs a Pearson4 fit -- enough of them and the run never
+    finishes. Cropping is what keeps this bounded."""
+    import time
+
+    recipe = get_recipe("rc2.ne_si")
+    started = time.monotonic()
+    engine_for_recipe(recipe).fit(
+        recipe,
+        {"neon": neon_spectrum.spectrum, "si": silicon_spectrum},
+        CalibrationContext(laser_wl_nm=532),
+    )
+    elapsed = time.monotonic() - started
+    # Uncropped this took minutes; a generous bound still catches a regression.
+    assert elapsed < 30, f"laser zeroing took {elapsed:.0f}s -- is the crop gone?"
+
+
 def test_calibration_applies_to_an_unrelated_target(neon_only_fit, target_spectrum):
     """A calibration derived from neon must apply to any other spectrum."""
     _, _, fit = neon_only_fit

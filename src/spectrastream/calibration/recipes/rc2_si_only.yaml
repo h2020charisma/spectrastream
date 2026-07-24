@@ -26,3 +26,4 @@ steps:
     params:
       si_profile: Pearson4
       should_fit: true
+      window_cm1: 50

@@ -60,24 +60,53 @@ class CalibrationRecord(BaseModel):
 
 
 class InstrumentProfile(BaseModel):
-    """An instrument, its optional metadata, and its calibrations."""
+    """An instrument, its metadata, and its calibrations.
+
+    Fields follow the *Front sheet* of the CHARISMA/VAMAS Raman reporting
+    template, so a profile filled in here and a template filled in for a
+    round-robin describe an instrument the same way. Only ``name`` and
+    ``laser_wl_nm`` carry weight: the wavelength is not decoration, it is what
+    makes a Raman shift axis interpretable, and no reference-line lookup works
+    without it.
+    """
 
     id: str = Field(default_factory=_new_id)
+    #: VAMAS "Identifier (ID)".
     name: str
+    #: VAMAS "Wavelength, nm". Required for a meaningful NeXus record.
     laser_wl_nm: float | None = None
+    #: VAMAS "Make" / "Model".
     vendor: str | None = None
     model: str | None = None
     serial: str | None = None
     device_type: str | None = None
+    #: VAMAS "Collection optics".
     numerical_aperture: str | None = None
+    #: VAMAS "Grating, l/mm".
     grating: str | None = None
+    #: VAMAS "Slit Size, um".
     slit: str | None = None
+    #: VAMAS "Pin hole size".
+    pin_hole_size: str | None = None
+    #: VAMAS "Max laser power, mW".
+    max_laser_power_mw: float | None = None
+    #: VAMAS "Spectral range / scanning mode".
+    spectral_range: str | None = None
+    #: VAMAS "Collection Fibre Diameter, mm".
+    collection_fibre_diameter_mm: str | None = None
+    #: VAMAS "Notes".
+    notes: str | None = None
     #: Anything the forms do not cover; lands under NeXus /parameters/*.
     extra: dict[str, str] = Field(default_factory=dict)
     calibrations: list[CalibrationRecord] = Field(default_factory=list)
     active_calibration_id: str | None = None
     created: datetime = Field(default_factory=_now)
     updated: datetime = Field(default_factory=_now)
+
+    @property
+    def is_complete_enough_for_nexus(self) -> bool:
+        """Whether a useful record can be written from this profile alone."""
+        return bool(self.name) and self.laser_wl_nm is not None
 
     @property
     def active_calibration(self) -> CalibrationRecord | None:
@@ -111,16 +140,25 @@ class InstrumentProfile(BaseModel):
     def instrument_metadata(self) -> dict[str, str]:
         """Flat, non-empty metadata for the NeXus writer.
 
+        Keys are spelled to match what pyambit's ``configure_papp`` recognises
+        (``grating``, ``pin hole size``) so they land on real NeXus paths
+        instead of the generic ``/parameters/*`` bucket.
+
         Empty fields are dropped rather than written as blanks -- an absent
         value is more honest than an empty string, and keeps minimal records
         genuinely minimal.
         """
         named = {
+            "serial_number": self.serial,
             "device_type": self.device_type,
             "numerical_aperture": self.numerical_aperture,
             "grating": self.grating,
             "slit": self.slit,
-            "serial_number": self.serial,
+            "pin hole size": self.pin_hole_size,
+            "max_laser_power_mw": self.max_laser_power_mw,
+            "spectral_range": self.spectral_range,
+            "collection_fibre_diameter_mm": self.collection_fibre_diameter_mm,
+            "notes": self.notes,
         }
         meta = {k: str(v) for k, v in named.items() if v not in (None, "")}
         meta.update({k: str(v) for k, v in self.extra.items() if v not in (None, "")})

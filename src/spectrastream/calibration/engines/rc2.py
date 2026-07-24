@@ -43,6 +43,19 @@ ENGINE_ID = "rc2"
 SI_REF_CM1 = 520.45
 
 
+def _output_units(component) -> str | None:
+    """Units of the axis a component's ``process`` produces.
+
+    Not the same as ``model_units``, which describes the *stored model*.
+    LazerZeroingComponent keeps a wavelength (so ``model_units == "nm"``) but
+    its ``process`` returns Raman shift; trusting ``model_units`` here would
+    convert an already-correct cm-1 axis a second time.
+    """
+    if isinstance(component, (LazerZeroingComponent, YCalibrationComponent)):
+        return "cm-1"
+    return getattr(component, "model_units", None)
+
+
 class Rc2Fitted:
     """A derived ramanchada2 calibration."""
 
@@ -63,18 +76,24 @@ class Rc2Fitted:
     def laser_wl_nm(self) -> float | None:
         return self.calmodel.laser_wl
 
+    @property
+    def output_units(self) -> str | None:
+        """Units of the axis this calibration produces."""
+        if not self.calmodel.components:
+            return None
+        return _output_units(self.calmodel.components[-1])
+
     def apply(self, spe: Spectrum, spe_units: str = "cm-1") -> Spectrum:
         if not self.calmodel.components:
             return spe
         out = self.calmodel.apply_calibration_x(spe, spe_units=spe_units)
 
-        # The Neon curve emits nm; laser zeroing is what normally converts back
-        # to Raman shift. When zeroing was skipped (no silicon spectrum) the
-        # axis would otherwise be returned in nm, which is not what the caller
-        # asked for. Convert back using the *nominal* laser wavelength: the
-        # curve still corrects the shape of the axis, it just carries no
-        # measured zero.
-        final_units = self.calmodel.components[-1].model_units
+        # The neon curve emits nm; converting back to Raman shift is laser
+        # zeroing's job. With no silicon spectrum that step is skipped and the
+        # axis would come back in nm, which is not what the caller asked for.
+        # Convert using the *nominal* laser wavelength: the curve still
+        # corrects the shape of the axis, it just carries no measured zero.
+        final_units = self.output_units
         if final_units and final_units != spe_units:
             out = self.calmodel.components[-1].convert_units(
                 out, final_units, spe_units, laser_wl=self.calmodel.laser_wl
@@ -192,10 +211,25 @@ def _action_laser_zero(
 ) -> tuple[StepOutcome, list[Diagnostic]]:
     spe = inputs[step.inputs[0]]
     ref = _as_float_dict(params.get("ref") or {SI_REF_CM1: 1})
+    ref_cm1 = next(iter(ref))
+    spe_units = params.get("spe_units", "cm-1")
+
+    # Crop to a window around the expected band *before* fitting. Without this,
+    # noise elsewhere in the spectrum produces dozens of candidate peaks and
+    # the Pearson4 fit takes minutes rather than milliseconds -- the reason the
+    # original app cropped silicon to 520.45 +/- 50 by default. Only one band
+    # is being measured, so everything outside the window is a distraction.
+    window = params.get("window_cm1", 50.0)
+    if window and spe_units == "cm-1":
+        low, high = ref_cm1 - float(window), ref_cm1 + float(window)
+        if min(spe.x) < high and max(spe.x) > low:
+            spe = spe.trim_axes(
+                method="x-axis",
+                boundaries=(max(low, float(min(spe.x))), min(high, float(max(spe.x)))),
+            )
 
     # Zeroing measures the band on whatever axis the preceding steps produced,
-    # so push the Silicon spectrum through them first.
-    spe_units = params.get("spe_units", "cm-1")
+    # so push the silicon spectrum through them first.
     if calmodel.components:
         spe = calmodel.apply_calibration_x(spe, spe_units=spe_units)
         spe_units = calmodel.components[-1].model_units
@@ -215,7 +249,6 @@ def _action_laser_zero(
         profile=params.get("si_profile", "Pearson4"),
     )
     zero_nm = float(component.model)
-    ref_cm1 = next(iter(ref))
     laser_nm = 1e7 / (1e7 / zero_nm + ref_cm1)
     detail = f"band at {zero_nm:.4f} nm, laser {laser_nm:.4f} nm"
     return (

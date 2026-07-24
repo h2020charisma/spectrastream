@@ -56,6 +56,10 @@ steps:
     params:
       si_profile: Pearson4
       should_fit: true
+      # Fit only around the band being measured. Peak finding over the whole
+      # spectrum picks up noise, and each spurious candidate costs a Pearson4
+      # fit.
+      window_cm1: 50
   - id: y_intensity
     label: Relative intensity (SRM)
     action: y_intensity
