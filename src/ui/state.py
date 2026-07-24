@@ -134,6 +134,10 @@ class AppState:
     #: which values it guessed rather than presenting them as the user's.
     guessed_fields: set[str] = field(default_factory=set)
     guessed_laser_wl_nm: float | None = None
+    #: Preprocessing chosen for the target spectrum. The same operations the
+    #: reference spectra get -- a sample needs cropping and baseline removal
+    #: for the same reasons a reference does.
+    target_steps: list[PreprocessStep] = field(default_factory=list)
     draft: CalibrationDraft = field(default_factory=CalibrationDraft)
 
     @property

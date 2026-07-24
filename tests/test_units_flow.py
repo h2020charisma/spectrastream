@@ -137,3 +137,33 @@ def test_normalisation_is_flagged_as_destroying_intensity():
 
     steps[0].enabled = False
     assert destroys_intensity(steps) == []
+
+
+def test_intensity_slots_do_not_offer_peak_finding():
+    """YCalibrationComponent resamples and divides by the certificate; it never
+    looks for peaks, so a peak-finding control there would do nothing."""
+    from spectrastream.calibration import get_recipe
+    from ui.recipe_form import _finds_peaks
+
+    recipe = get_recipe("rc2.ne_si")
+    assert _finds_peaks(recipe, "neon")
+    assert _finds_peaks(recipe, "si")
+    assert not _finds_peaks(recipe, "srm")
+    assert not _finds_peaks(get_recipe("rc2.y_srm"), "srm")
+
+
+def test_the_srm_crop_defaults_to_the_certified_range():
+    """The certificate states where it is valid; cropping elsewhere either
+    discards certified data or admits uncertified data."""
+    from spectrastream.calibration import get_recipe
+    from ui.recipe_form import certified_range
+    from ui.state import CalibrationDraft
+
+    recipe = get_recipe("rc2.ne_si")
+    draft = CalibrationDraft(recipe_id=recipe.id)
+
+    assert certified_range(recipe, draft, "srm", 532) == (150, 4000)
+    assert certified_range(recipe, draft, "srm", 785) == (200, 3500)
+    # Slots with no certificate have no certified range to offer.
+    assert certified_range(recipe, draft, "neon", 532) is None
+    assert certified_range(recipe, draft, "srm", None) is None

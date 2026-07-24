@@ -140,6 +140,53 @@ class Rc2Fitted:
     def outcomes(self) -> list[StepOutcome]:
         return list(self._outcomes)
 
+    def describe(self) -> list[tuple[str, str]]:
+        """What this calibration is, for inspecting a saved one.
+
+        Reads the model rather than a stored summary, so it describes the
+        calibration that will actually be applied.
+        """
+        rows: list[tuple[str, str]] = [
+            ("Laser wavelength", f"{self.calmodel.laser_wl} nm"),
+            ("Output axis", self.output_units or "unchanged"),
+            ("Non-monotonic handling", str(self.calmodel.nonmonotonic)),
+        ]
+        for component in self.calmodel.components:
+            name = type(component).__name__.replace("Component", "")
+            detail = getattr(component, "name", "") or ""
+            if isinstance(component, LazerZeroingComponent):
+                zero_nm = float(component.model)
+                ref_cm1 = float(next(iter(component.ref), SI_REF_CM1))
+                laser = 1e7 / (1e7 / zero_nm + ref_cm1)
+                detail = f"band {zero_nm:.4f} nm, laser {laser:.4f} nm"
+            rows.append((name, detail))
+        return rows
+
+    def corrections(self) -> str:
+        """What this calibration actually changes, for a plot label.
+
+        "Calibrated" alone does not say whether the axis moved, the
+        intensities were rescaled, or both.
+        """
+        axis = any(
+            isinstance(c, (XCalibrationComponent, LazerZeroingComponent))
+            for c in self.calmodel.components
+        )
+        intensity = any(
+            isinstance(c, YCalibrationComponent) for c in self.calmodel.components
+        )
+        if axis and intensity:
+            return "axis + intensity corrected"
+        if intensity:
+            return "intensity corrected"
+        if axis:
+            return "axis corrected"
+        return "unchanged"
+
+    def figure(self):
+        """The model's own plot, for a saved calibration as much as a fresh one."""
+        return _curve_figure(self.calmodel)
+
     @property
     def applied_steps(self) -> list[str]:
         return [o.step_id for o in self._outcomes if o.status == "applied"]

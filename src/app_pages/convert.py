@@ -15,6 +15,7 @@ spectrum described here carries the same facts as one described for a
 round-robin.
 """
 
+import pandas as pd
 import streamlit as st
 from ramanchada2.io.output.write_csv import write_csv as io_write_csv
 
@@ -28,7 +29,13 @@ from spectrastream.calibration import CalibrationError, get_engine
 from spectrastream.cwa import CwaExportError, export_x_files, x_calibration_model
 from spectrastream.ingest import IngestError, load_spectrum
 from spectrastream.nexus import missing_minimum, nexus_filename, spectrum_to_nexus
-from ui.charts import show_spectrum, x_title
+from spectrastream.preprocess import (
+    BASELINE_METHODS,
+    PreprocessError,
+    PreprocessStep,
+    apply_steps,
+)
+from ui.charts import show_spectrum, show_twin, x_title
 from ui.state import get_state
 
 state = get_state()
@@ -77,6 +84,12 @@ if uploaded is not None:
             )
             state.guessed_laser_wl_nm = guessed_wl
 
+st.caption(
+    "Any format ramanchada2 reads becomes a NeXus file. A calibration and an "
+    "instrument profile make the record richer, but neither is required — "
+    "converting alone is the point."
+)
+
 target = state.target
 
 if target is None:
@@ -96,6 +109,59 @@ meta_cols[0].metric("Points", f"{target.n_points:,}")
 meta_cols[1].metric("Range", f"{low:,.0f}–{high:,.0f}")
 meta_cols[2].metric("Format", target.filetype.upper())
 meta_cols[3].metric("Fields read", len(target.source_metadata))
+
+
+# --- optional preprocessing -------------------------------------------------
+
+if not state.target_steps:
+    state.target_steps = [
+        PreprocessStep(op="trim", enabled=False),
+        PreprocessStep(op="baseline", enabled=False, params={"method": "snip"}),
+    ]
+
+with st.expander("Preprocess this spectrum", icon=":material/tune:"):
+    st.caption(
+        "Optional, and applied before calibration and export. Cropping and "
+        "baseline removal are the usual ones."
+    )
+    for index, step in enumerate(state.target_steps):
+        step.enabled = st.checkbox(
+            step.display_label(), value=step.enabled, key=f"tgt_{index}"
+        )
+        if not step.enabled:
+            continue
+        if step.op == "trim":
+            cols = st.columns(2)
+            step.params["min"] = cols[0].number_input(
+                "From", value=float(step.params.get("min", low)), key=f"tgt_min{index}"
+            )
+            step.params["max"] = cols[1].number_input(
+                "To", value=float(step.params.get("max", high)), key=f"tgt_max{index}"
+            )
+        elif step.op == "baseline":
+            cols = st.columns(2)
+            methods = list(BASELINE_METHODS)
+            current = str(step.params.get("method", "snip"))
+            step.params["method"] = cols[0].selectbox(
+                "Method",
+                options=methods,
+                index=methods.index(current) if current in methods else 0,
+                key=f"tgt_bl{index}",
+            )
+            step.params["niter"] = cols[1].number_input(
+                "Iterations",
+                value=int(step.params.get("niter", 30)),
+                step=1,
+                key=f"tgt_ni{index}",
+            )
+
+try:
+    working_spectrum, target_applied = apply_steps(target.spectrum, state.target_steps)
+except PreprocessError as err:
+    working_spectrum, target_applied = target.spectrum, []
+    st.error(str(err), icon=":material/error:")
+if target_applied:
+    st.caption("Applied: " + " → ".join(target_applied))
 
 
 # --- optional instrument profile -------------------------------------------
@@ -200,20 +266,42 @@ if apply_calibration and calibration_record is not None:
         )
 
 
+if fitted is not None and calibration_record is not None:
+    with st.expander("Explore this calibration", icon=":material/search:"):
+        st.caption(
+            f"Derived {calibration_record.created:%Y-%m-%d} with "
+            f"`{calibration_record.recipe_id}`."
+        )
+        describe = getattr(fitted, "describe", None)
+        if describe is not None:
+            st.dataframe(
+                pd.DataFrame(describe(), columns=["Property", "Value"]),
+                width="stretch",
+                hide_index=True,
+            )
+        figure = getattr(fitted, "figure", None)
+        if figure is not None:
+            drawn = figure()
+            if drawn is not None:
+                st.pyplot(drawn, width="stretch")
+        for source in calibration_record.sources:
+            st.caption(f"{source.slot}: {source.filename}")
+
+
 # --- chart ------------------------------------------------------------------
 
 axis_units = state.acquisition.units
 if calibrated is not None:
-    show_spectrum(
-        {
-            "As measured": (target.spectrum.x, target.spectrum.y),
-            "Calibrated": (calibrated.x, calibrated.y),
-        },
+    corrections = getattr(fitted, "corrections", lambda: "calibrated")()
+    show_twin(
+        ("As measured", (working_spectrum.x, working_spectrum.y)),
+        (corrections.capitalize(), (calibrated.x, calibrated.y)),
         x_title=x_title(axis_units),
+        caption=f"Left axis as measured, right axis {corrections}.",
     )
 else:
     show_spectrum(
-        {target.filename: (target.spectrum.x, target.spectrum.y)},
+        {target.filename: (working_spectrum.x, working_spectrum.y)},
         x_title=x_title(axis_units),
     )
 
@@ -320,7 +408,7 @@ missing = missing_minimum(optical_path, effective_wl)
 
 st.subheader("Download")
 
-export_spectrum = calibrated if calibrated is not None else target.spectrum
+export_spectrum = calibrated if calibrated is not None else working_spectrum
 nexus_bytes = None
 
 if missing:

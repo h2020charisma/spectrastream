@@ -50,6 +50,39 @@ TUNABLES = {
 }
 
 
+def _finds_peaks(recipe: RecipeSpec, slot_id: str) -> bool:
+    """Whether any step consuming this slot actually looks for peaks.
+
+    Intensity calibration does not: YCalibrationComponent resamples the
+    measured reference and divides by the certificate's response. Offering
+    peak finding there would be offering a control that does nothing.
+    """
+    return any(s.produces != "y_response" for s in _steps_using(recipe, slot_id))
+
+
+def certified_range(
+    recipe: RecipeSpec, draft: CalibrationDraft, slot_id: str, laser_wl_nm
+) -> tuple[float, float] | None:
+    """The certificate's certified Raman-shift range, if this slot has one.
+
+    The certificate states where it is valid; cropping to anything else is
+    either discarding certified data or including uncertified data.
+    """
+    from ramanchada2.protocols.calibration.ycalibration import CertificatesDict
+
+    steps = [s for s in _steps_using(recipe, slot_id) if s.action == "y_intensity"]
+    if not steps or laser_wl_nm is None:
+        return None
+    scope = draft.params.get(steps[0].id, {})
+    key = scope.get("certificate", steps[0].params.get("certificate"))
+    try:
+        certs = CertificatesDict().get_certificates(int(laser_wl_nm))
+        cert = certs[key] if key in certs else next(iter(certs.values()))
+    except (KeyError, ValueError, StopIteration):
+        return None
+    return tuple(cert.raman_shift) if cert.raman_shift else None
+
+
 def _steps_using(recipe: RecipeSpec, slot_id: str):
     return [s for s in recipe.steps if slot_id in s.inputs]
 
@@ -352,20 +385,78 @@ def _slot_uploader(
     if len(entry.loaded) > 1:
         _exposure_inputs(slot, draft, entry)
 
-    _preprocess_controls(slot, recipe, draft, entry)
+    _preprocess_controls(slot, recipe, draft, entry, laser_wl_nm)
 
     problem = _resolve_slot(slot, draft)
     if problem:
         problems.append(problem)
 
-    with st.expander("Peak finding", icon=":material/graphic_eq:"):
+    # The certificate belongs beside the spectrum it describes, not in a
+    # settings panel further down the page.
+    _certificate_control(slot, recipe, draft, laser_wl_nm)
+
+    if not _finds_peaks(recipe, slot.id):
+        st.caption(
+            "Intensity calibration does not look for peaks — the measured "
+            "reference is resampled and divided by the certificate's response."
+        )
+        _show_slot(slot, draft)
+        return problems
+
+    # Controls fold away; the spectrum and its peaks stay visible, because
+    # seeing them is the whole point of tuning the controls.
+    with st.expander("Peak finding settings", icon=":material/graphic_eq:"):
         st.caption(
             "These apply to this material only, and no single set of values "
-            "suits every instrument -- try them here and see what the fit gets."
+            "suits every instrument."
         )
         _peak_controls(slot, recipe, draft)
-        _try_peaks(slot, recipe, draft, laser_wl_nm)
+    _try_peaks(slot, recipe, draft, laser_wl_nm)
     return problems
+
+
+def _show_slot(slot: SpectrumSlot, draft: CalibrationDraft) -> None:
+    """The spectrum as the engine will receive it."""
+    entry = draft.slots.get(slot.id)
+    if entry is None or entry.merged is None:
+        return
+    show_spectrum(
+        {slot.label: (entry.merged.x, entry.merged.y)},
+        height=240,
+        x_title=x_title(entry.units),
+    )
+
+
+def _certificate_control(
+    slot: SpectrumSlot,
+    recipe: RecipeSpec,
+    draft: CalibrationDraft,
+    laser_wl_nm: float | None,
+) -> None:
+    """Which certified material this spectrum is, beside its upload."""
+    from ramanchada2.protocols.calibration.ycalibration import CertificatesDict
+
+    steps = [s for s in _steps_using(recipe, slot.id) if s.action == "y_intensity"]
+    if not steps or laser_wl_nm is None:
+        return
+    try:
+        available = list(CertificatesDict().get_certificates(int(laser_wl_nm)))
+    except (KeyError, ValueError):
+        available = []
+    if not available:
+        st.caption(f":orange[No intensity certificate exists for {laser_wl_nm:g} nm.]")
+        return
+
+    for step in steps:
+        scope = draft.params.setdefault(step.id, {})
+        current = scope.get("certificate", step.params.get("certificate"))
+        scope["certificate"] = st.selectbox(
+            "Reference material certificate",
+            options=available,
+            index=available.index(current) if current in available else 0,
+            key=f"cert_{recipe.id}_{step.id}",
+            help="Which certified material this measured spectrum is.",
+        )
 
 
 def _exposure_inputs(slot, draft: CalibrationDraft, entry: SlotInput) -> None:
@@ -397,7 +488,11 @@ def _exposure_inputs(slot, draft: CalibrationDraft, entry: SlotInput) -> None:
 
 
 def _preprocess_controls(
-    slot, recipe: RecipeSpec, draft: CalibrationDraft, entry: SlotInput
+    slot,
+    recipe: RecipeSpec,
+    draft: CalibrationDraft,
+    entry: SlotInput,
+    laser_wl_nm: float | None = None,
 ) -> None:
     """Toggles and parameters for the preprocessing this recipe offers."""
     if not slot.preprocess:
@@ -430,6 +525,13 @@ def _preprocess_controls(
                 continue
             if step.op == "trim":
                 low, high = entry.x_range()
+                certified = certified_range(recipe, draft, slot.id, laser_wl_nm)
+                if certified:
+                    low, high = certified
+                    st.caption(
+                        f"Certified range {low:g}–{high:g} cm⁻¹ — the "
+                        "certificate is only valid here."
+                    )
                 cols = st.columns(2)
                 step.params["min"] = cols[0].number_input(
                     "From", value=float(step.params.get("min", low)), key=f"{key}_min"
