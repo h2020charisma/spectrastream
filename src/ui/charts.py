@@ -115,16 +115,36 @@ def spectrum_chart(
     )
 
 
+def peak_markers(frame: pd.DataFrame, x_title: str = X_TITLE) -> alt.Chart:
+    """Found peaks as marks over a spectrum, with their positions on hover."""
+    return (
+        alt.Chart(frame)
+        .mark_point(size=70, filled=False, strokeWidth=1.6, color="#eb6834")
+        .encode(
+            x=alt.X("position:Q"),
+            y=alt.Y("height:Q"),
+            tooltip=[
+                alt.Tooltip("position:Q", title=x_title, format=".3f"),
+                alt.Tooltip("height:Q", title="Height", format=".4g"),
+            ],
+        )
+    )
+
+
 def show_spectrum(
     series: dict[str, tuple[np.ndarray, np.ndarray]],
     x_title: str = X_TITLE,
     y_title: str = Y_TITLE,
     height: int = 320,
     caption: str | None = None,
+    peaks: pd.DataFrame | None = None,
 ) -> None:
     if not series:
         return
-    st.altair_chart(spectrum_chart(series, x_title, y_title, height), width="stretch")
+    chart = spectrum_chart(series, x_title, y_title, height)
+    if peaks is not None and not peaks.empty and "position" in peaks:
+        chart = chart + peak_markers(peaks, x_title)
+    st.altair_chart(chart, width="stretch")
     total = sum(len(x) for x, _ in series.values())
     if caption:
         st.caption(caption)

@@ -11,15 +11,20 @@ from typing import Any
 import streamlit as st
 
 from spectrastream.acquisition import guess_from_metadata
+from spectrastream.calibration.engines.base import explain as explain_error
 from spectrastream.calibration.spec import RecipeSpec, SpectrumSlot
 from spectrastream.ingest import IngestError, load_spectrum
 from spectrastream.merge import MergeError, combine
 from spectrastream.peaks import (
     DEFAULT_FIND_KW,
     PeakFindError,
-    too_few_points,
+    build_component,
+    positions,
+    searched_spectrum,
 )
-from spectrastream.peaks import find as find_peaks
+from spectrastream.peaks import (
+    run as run_peaks,
+)
 from spectrastream.preprocess import (
     BASELINE_METHODS,
     NORMALIZE_LABELS,
@@ -122,27 +127,124 @@ def _peak_controls(
             )
 
 
-def _peak_report(slot: SpectrumSlot, recipe: RecipeSpec, draft: CalibrationDraft):
-    """What the engine will find with the current settings."""
+#: Which peak shapes make sense per step. Neon emission lines are Gaussian;
+#: the silicon band is fitted with Pearson4 by the zeroing step, with Gaussian
+#: worth trying when that will not converge.
+PROFILES_BY_ACTION = {
+    "x_curve": ["Gaussian"],
+    "laser_zero": ["Pearson4", "Gaussian"],
+}
+
+
+def _profiles_for(recipe: RecipeSpec, slot_id: str) -> list[str]:
+    for step in _steps_using(recipe, slot_id):
+        if step.action in PROFILES_BY_ACTION:
+            return PROFILES_BY_ACTION[step.action]
+    return ["Gaussian"]
+
+
+def _peak_settings(recipe: RecipeSpec, draft: CalibrationDraft, slot_id: str):
+    """The peak-finding settings in force for a slot: (find_kw, coeff, fit)."""
+    steps = _steps_using(recipe, slot_id)
+    if not steps:
+        return None, 3.0, False
+    step = steps[0]
+    scope = draft.params.get(step.id, {})
+    find_kw = scope.get("find_kw") or step.params.get("find_kw") or DEFAULT_FIND_KW
+    coeff = float(scope.get("prominence_coeff", step.params.get("prominence_coeff", 3)))
+    should_fit = bool(scope.get("should_fit", step.params.get("should_fit", False)))
+    return dict(find_kw), coeff, should_fit
+
+
+def _try_peaks(
+    slot: SpectrumSlot,
+    recipe: RecipeSpec,
+    draft: CalibrationDraft,
+    laser_wl_nm: float | None,
+) -> None:
+    """Drive ramanchada2's own component and show what it found.
+
+    No algorithm here: this builds the component the step will use and calls
+    its fit_peaks, so the peaks shown are the peaks the calibration will match,
+    on the axis it searches. Finding is cheap and runs on every change; fitting
+    is what takes time, so it is asked for explicitly.
+    """
     entry = draft.slots.get(slot.id)
     if entry is None or entry.merged is None:
-        return None
+        st.caption("Upload a spectrum to try peak finding.")
+        return
 
+    find_kw, coeff, _ = _peak_settings(recipe, draft, slot.id)
     steps = _steps_using(recipe, slot.id)
-    if not steps:
-        return None
-    scope = draft.params.get(steps[0].id, {})
-    find_kw = scope.get("find_kw") or steps[0].params.get("find_kw")
-    coeff = scope.get("prominence_coeff", steps[0].params.get("prominence_coeff", 3))
+    action = steps[0].action if steps else "x_curve"
+
     try:
-        return find_peaks(entry.merged, find_kw, float(coeff))
+        component = build_component(action, entry.merged, entry.units, laser_wl_nm)
     except PeakFindError as err:
-        st.caption(f":red[Peak finding failed: {err}]")
-        return None
+        st.caption(f":orange[{err}]")
+        return
+
+    frame, error = run_peaks(component, find_kw, coeff, should_fit=False)
+    if error:
+        st.error(f"Peak finding fails here: {error}", icon=":material/error:")
+        hint = explain_error(Exception(error))
+        if hint:
+            st.caption(hint)
+        return
+
+    working, units = searched_spectrum(component)
+    found = positions(component)
+    if units != entry.units:
+        st.caption(
+            f"Searched in {UNIT_LABELS.get(units, units)} — the units this step "
+            "matches its reference lines in."
+        )
+    st.caption(f"**{len(found)} peaks found** with these settings.")
+    show_spectrum(
+        {slot.label: (working.x, working.y)},
+        height=260,
+        x_title=x_title(units),
+        peaks=found,
+        caption="Circles mark what this step will match against its references.",
+    )
+
+    if st.button(
+        "Fit these peaks",
+        key=f"try_{recipe.id}_{slot.id}",
+        icon=":material/play_arrow:",
+        help="Fitting a profile to every candidate is slow — seconds to minutes.",
+    ):
+        with st.spinner(f"Fitting {len(found)} peaks…"):
+            fitted_frame, fit_error = run_peaks(
+                component, find_kw, coeff, should_fit=True
+            )
+        entry.peak_trial = (fitted_frame, fit_error, True)
+
+    trial = getattr(entry, "peak_trial", None)
+    if trial is None:
+        st.dataframe(frame, width="stretch", height=180)
+        return
+    fitted_frame, fit_error, _ = trial
+
+    if fit_error:
+        st.error(
+            f"Fitting fails with these settings: {fit_error}",
+            icon=":material/error:",
+        )
+        hint = explain_error(Exception(fit_error))
+        if hint:
+            st.caption(hint)
+        return
+
+    st.success(f"{len(fitted_frame)} peaks fitted.", icon=":material/check_circle:")
+    st.dataframe(fitted_frame, width="stretch", height=180)
 
 
 def _slot_uploader(
-    slot: SpectrumSlot, recipe: RecipeSpec, draft: CalibrationDraft
+    slot: SpectrumSlot,
+    recipe: RecipeSpec,
+    draft: CalibrationDraft,
+    laser_wl_nm: float | None,
 ) -> list[str]:
     """One slot: files, units, exposures, preprocessing. Returns problems."""
     problems: list[str] = []
@@ -205,10 +307,11 @@ def _slot_uploader(
 
     with st.expander("Peak finding", icon=":material/graphic_eq:"):
         st.caption(
-            "These apply to this material only. What the fit sees depends on "
-            "them, so they are the first thing to change when a step fails."
+            "These apply to this material only, and no single set of values "
+            "suits every instrument -- try them here and see what the fit gets."
         )
         _peak_controls(slot, recipe, draft)
+        _try_peaks(slot, recipe, draft, laser_wl_nm)
     return problems
 
 
@@ -313,12 +416,14 @@ def _preprocess_controls(slot, draft: CalibrationDraft, entry: SlotInput) -> Non
                     )
 
 
-def slot_uploaders(recipe: RecipeSpec, draft: CalibrationDraft) -> list[str]:
+def slot_uploaders(
+    recipe: RecipeSpec, draft: CalibrationDraft, laser_wl_nm: float | None = None
+) -> list[str]:
     """Render every slot. Returns messages for inputs that failed to load."""
     problems: list[str] = []
     for slot in recipe.slots:
         with st.container(border=True):
-            problems.extend(_slot_uploader(slot, recipe, draft))
+            problems.extend(_slot_uploader(slot, recipe, draft, laser_wl_nm))
     return problems
 
 
@@ -379,27 +484,6 @@ def preview(recipe: RecipeSpec, draft: CalibrationDraft) -> None:
     for slot_id, notes in draft.provenance.items():
         if len(notes) > 1 or notes[0] != "single acquisition":
             st.caption(f"{recipe.slot(slot_id).label}: " + " → ".join(notes))
-
-    # What peak finding will actually hand the fit. A count wildly above the
-    # number of reference lines means the crop is too wide or the prominence
-    # too low, and that is far easier to act on here than after a failure.
-    for slot in recipe.slots:
-        report = _peak_report(slot, recipe, draft)
-        if report is None:
-            continue
-        frame, prominence = report
-        unfittable = too_few_points(frame)
-        message = (
-            f"{slot.label}: {len(frame)} peaks found (prominence {prominence:.4g})"
-        )
-        if unfittable.empty:
-            st.caption(message)
-        else:
-            st.caption(
-                f":orange[{message} — {len(unfittable)} of them sit in groups "
-                "too narrow to fit. Widen the peak window or raise the "
-                "prominence.]"
-            )
 
 
 def step_overview(recipe: RecipeSpec, draft: CalibrationDraft) -> None:

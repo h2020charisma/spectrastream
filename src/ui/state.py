@@ -36,6 +36,8 @@ class SlotInput:
     exposures: list[float | None] = field(default_factory=list)
     steps: list[PreprocessStep] = field(default_factory=list)
     merged: Spectrum | None = None
+    #: Result of the last "try peak finding" run: (peaks, error, was_fitted).
+    peak_trial: tuple[Any, str | None, bool] | None = None
 
     def steps_for(self, slot) -> list[PreprocessStep]:
         """Preprocessing for this slot, seeded from the recipe's defaults."""

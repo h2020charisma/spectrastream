@@ -47,6 +47,10 @@ class Diagnostic:
     value: float | None = None
     curve: tuple[list[float], list[float]] | None = None
     table: pd.DataFrame | None = None
+    #: A matplotlib figure produced by the engine's own library, shown as-is.
+    #: Re-plotting it here would risk showing something subtly different from
+    #: the model that was actually fitted.
+    figure: Any | None = None
 
 
 @dataclass

@@ -126,7 +126,7 @@ st.caption(recipe.description.strip())
 # --- reference spectra, straight from the recipe ----------------------------
 
 st.subheader("Reference spectra")
-for problem in slot_uploaders(recipe, draft):
+for problem in slot_uploaders(recipe, draft, optical_path.laser_wl_nm):
     st.error(problem, icon=":material/error:")
 
 # Merge and preprocess now, so the plot shows what the engine will receive
@@ -223,6 +223,8 @@ with st.expander("Diagnostics", icon=":material/query_stats:"):
         st.caption("This engine reported no diagnostics.")
     for diagnostic in diagnostics:
         st.markdown(f"**{diagnostic.label}** — {diagnostic.text or ''}")
+        if diagnostic.figure is not None:
+            st.pyplot(diagnostic.figure, width="stretch")
         if diagnostic.table is not None and not diagnostic.table.empty:
             st.dataframe(diagnostic.table, width="stretch", height=220)
         if diagnostic.curve is not None:

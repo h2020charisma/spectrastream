@@ -171,21 +171,74 @@ def _neon_reference(
         ) from err
 
 
-def _curve_diagnostic(step: StepSpec, component: XCalibrationComponent) -> Diagnostic:
-    """Sample the fitted curve so the UI can draw uncalibrated vs calibrated."""
-    peaks = getattr(component, "peaks", None)
+def _curve_figure(calmodel: CalibrationModel):
+    """The calibration model's own plot.
+
+    ``CalibrationModel.plot`` already draws the fitted curve -- it is what the
+    VAMAS pipeline calls -- so this asks the model to draw itself rather than
+    reconstructing the picture and risking showing something subtly different
+    from what was actually fitted.
+    """
+    try:
+        ax = calmodel.plot()
+        fig = ax.get_figure()
+        ax.grid(alpha=0.3)
+        fig.tight_layout()
+        return fig
+    except Exception:  # noqa: BLE001 - a diagnostic must never break the fit
+        return None
+
+
+def _zero_figure(component, spe, zero_nm: float):
+    """ramanchada2's fit of the silicon band, with the position it settled on."""
+    import matplotlib.pyplot as plt
+
+    try:
+        fig, ax = plt.subplots(figsize=(7, 3))
+        spe.plot(ax=ax, label="silicon, as fitted")
+        fit_res = getattr(component, "fit_res", None)
+        if fit_res is not None and hasattr(fit_res, "plot"):
+            fit_res.plot(ax=ax, label="fit", linestyle="--")
+        ax.axvline(
+            zero_nm,
+            color="black",
+            linestyle="--",
+            linewidth=1.5,
+            label=f"band at {zero_nm:.3f} nm",
+        )
+        ax.legend()
+        ax.grid(alpha=0.3)
+        fig.tight_layout()
+        return fig
+    except Exception:  # noqa: BLE001 - a diagnostic must never break the fit
+        return None
+
+
+def _curve_diagnostic(
+    step: StepSpec, component: XCalibrationComponent, calmodel: CalibrationModel
+) -> Diagnostic:
+    """Matched peaks and the fitted curve, as evidence for the calibration."""
+    matched = getattr(component, "matched_peaks", None)
     table = None
-    if peaks is not None and len(peaks):
+    if matched is not None and len(matched):
         try:
-            table = pd.DataFrame(peaks)
+            table = pd.DataFrame(matched)
         except (ValueError, TypeError):
             table = None
+    if table is None:
+        peaks = getattr(component, "peaks", None)
+        if peaks is not None and len(peaks):
+            try:
+                table = pd.DataFrame(peaks)
+            except (ValueError, TypeError):
+                table = None
     return Diagnostic(
         step_id=step.id,
         label=step.label,
         kind="table",
         text=f"matched {0 if table is None else len(table)} peaks",
         table=table,
+        figure=_curve_figure(calmodel),
     )
 
 
@@ -217,7 +270,7 @@ def _action_x_curve(
         extrapolate=bool(params.get("extrapolate", True)),
     )
     outcome = StepOutcome(step.id, step.label, "applied", f"{len(ref)} reference lines")
-    return outcome, [_curve_diagnostic(step, component)]
+    return outcome, [_curve_diagnostic(step, component, calmodel)]
 
 
 def _action_laser_zero(
@@ -293,6 +346,7 @@ def _action_laser_zero(
     )
     zero_nm = float(component.model)
     laser_nm = 1e7 / (1e7 / zero_nm + ref_cm1)
+    figure = _zero_figure(component, spe, zero_nm)
     detail = f"band at {zero_nm:.4f} nm, laser {laser_nm:.4f} nm"
     return (
         StepOutcome(step.id, step.label, "applied", detail),
@@ -303,6 +357,7 @@ def _action_laser_zero(
                 kind="scalar",
                 value=laser_nm,
                 text=f"calibrated laser wavelength {laser_nm:.4f} nm",
+                figure=figure,
             )
         ],
     )
