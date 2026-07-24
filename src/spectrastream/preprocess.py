@@ -21,6 +21,30 @@ OpName = Literal["trim", "baseline", "normalize", "smooth"]
 BASELINE_METHODS = ("snip", "als")
 SMOOTH_METHODS = ("savgol", "wiener", "median", "gauss", "boxcar")
 
+#: Normalisation strategies ramanchada2 offers. They are not interchangeable:
+#: min-max rescales to [0, 1], area/density normalise the integral, and the
+#: L-norms divide by a vector norm. Which one is right depends on what the
+#: spectrum is being compared against, so it is the user's call.
+NORMALIZE_STRATEGIES = (
+    "minmax",
+    "unity",
+    "min_unity",
+    "unity_density",
+    "unity_area",
+    "L1",
+    "L2",
+)
+
+NORMALIZE_LABELS = {
+    "minmax": "Min-max (0 to 1)",
+    "unity": "Unity maximum",
+    "min_unity": "Unity, offset to zero",
+    "unity_density": "Unity density",
+    "unity_area": "Unity area",
+    "L1": "L1 norm",
+    "L2": "L2 norm",
+}
+
 
 class PreprocessStep(BaseModel):
     """One operation applied to a reference spectrum before fitting."""
@@ -76,7 +100,10 @@ def _op_baseline(spe: Spectrum, params: Mapping[str, Any]) -> Spectrum:
 
 
 def _op_normalize(spe: Spectrum, params: Mapping[str, Any]) -> Spectrum:
-    return spe.normalize(strategy=str(params.get("strategy", "minmax")))
+    strategy = str(params.get("strategy", "minmax"))
+    if strategy not in NORMALIZE_STRATEGIES:
+        raise PreprocessError(f"unknown normalisation strategy {strategy!r}")
+    return spe.normalize(strategy=strategy)
 
 
 def _op_smooth(spe: Spectrum, params: Mapping[str, Any]) -> Spectrum:

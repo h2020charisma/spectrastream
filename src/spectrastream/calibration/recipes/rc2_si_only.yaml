@@ -19,6 +19,10 @@ slots:
     merge: auto
     help: Silicon wafer spectrum covering the 520.45 cm-1 band.
     preprocess:
+      - op: trim
+        enabled: true
+        label: Crop to the silicon band
+        params: {min: 400, max: 650}
       - op: baseline
         enabled: true
         label: Remove baseline (SNIP)

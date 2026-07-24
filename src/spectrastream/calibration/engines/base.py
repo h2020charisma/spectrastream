@@ -22,6 +22,14 @@ class CalibrationContext:
     laser_wl_nm: float | None = None
     instrument: Mapping[str, Any] = field(default_factory=dict)
     spectral_range_cm1: tuple[float, float] | None = None
+    #: Axis units per slot id. Nothing in a data file states them, so the user
+    #: declares them per upload -- and the engine must honour that rather than
+    #: assuming the recipe's default. A neon spectrum in nm and a silicon one
+    #: in cm-1 is a perfectly ordinary combination.
+    input_units: Mapping[str, str] = field(default_factory=dict)
+
+    def units_for(self, slot_id: str, default: str = "cm-1") -> str:
+        return self.input_units.get(slot_id) or default
 
 
 @dataclass

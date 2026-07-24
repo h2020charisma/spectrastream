@@ -190,7 +190,7 @@ def _action_x_curve(
     component = calmodel._derive_model_curve(
         spe=spe,
         ref=ref,
-        spe_units=params.get("spe_units", "cm-1"),
+        spe_units=ctx.units_for(step.inputs[0], params.get("spe_units", "cm-1")),
         ref_units=params.get("ref_units", "nm"),
         find_kw=find_kw,
         fit_peaks_kw=dict(params.get("fit_peaks_kw") or {}),
@@ -214,7 +214,7 @@ def _action_laser_zero(
     spe = inputs[step.inputs[0]]
     ref = _as_float_dict(params.get("ref") or {SI_REF_CM1: 1})
     ref_cm1 = next(iter(ref))
-    spe_units = params.get("spe_units", "cm-1")
+    spe_units = ctx.units_for(step.inputs[0], params.get("spe_units", "cm-1"))
 
     # Crop to a window around the expected band *before* fitting. Without this,
     # noise elsewhere in the spectrum produces dozens of candidate peaks and
@@ -310,7 +310,8 @@ def _action_y_intensity(
     # the measured reference has to go through the x-steps derived above first.
     if calmodel.components:
         spe = calmodel.apply_calibration_x(
-            spe, spe_units=params.get("spe_units", "cm-1")
+            spe,
+            spe_units=ctx.units_for(step.inputs[0], params.get("spe_units", "cm-1")),
         )
 
     component = YCalibrationComponent(

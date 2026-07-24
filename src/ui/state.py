@@ -85,6 +85,26 @@ class CalibrationDraft:
             if entry.merged is not None
         }
 
+    def input_units(self) -> dict[str, str]:
+        """Declared axis units per slot, for the engine to honour."""
+        return {
+            sid: entry.units
+            for sid, entry in self.slots.items()
+            if entry.merged is not None
+        }
+
+    def unit_groups(self) -> dict[str, list[str]]:
+        """Slot ids grouped by units.
+
+        Spectra in different units cannot share an x axis, so the UI plots one
+        chart per group rather than silently overlaying nm on cm-1.
+        """
+        groups: dict[str, list[str]] = {}
+        for sid, entry in self.slots.items():
+            if entry.merged is not None:
+                groups.setdefault(entry.units, []).append(sid)
+        return groups
+
     def source_files(self) -> list[tuple[str, LoadedSpectrum]]:
         return [
             (sid, item) for sid, entry in self.slots.items() for item in entry.loaded

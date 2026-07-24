@@ -16,6 +16,8 @@ from spectrastream.ingest import IngestError, load_spectrum
 from spectrastream.merge import MergeError, combine
 from spectrastream.preprocess import (
     BASELINE_METHODS,
+    NORMALIZE_LABELS,
+    NORMALIZE_STRATEGIES,
     SMOOTH_METHODS,
     PreprocessError,
     apply_steps,
@@ -173,6 +175,20 @@ def _preprocess_controls(slot, draft: CalibrationDraft, entry: SlotInput) -> Non
                     step=1,
                     key=f"{key}_niter",
                 )
+            elif step.op == "normalize":
+                strategies = list(NORMALIZE_STRATEGIES)
+                current = str(step.params.get("strategy", "minmax"))
+                step.params["strategy"] = st.selectbox(
+                    "Strategy",
+                    options=strategies,
+                    index=(strategies.index(current) if current in strategies else 0),
+                    format_func=lambda s: NORMALIZE_LABELS.get(s, s),
+                    key=f"{key}_strategy",
+                    help=(
+                        "Min-max rescales to 0–1; area and density normalise "
+                        "the integral; the L-norms divide by a vector norm."
+                    ),
+                )
             elif step.op == "smooth":
                 cols = st.columns(2)
                 methods = list(SMOOTH_METHODS)
@@ -238,16 +254,23 @@ def resolve_inputs(recipe: RecipeSpec, draft: CalibrationDraft) -> list[str]:
 
 
 def preview(recipe: RecipeSpec, draft: CalibrationDraft) -> None:
-    """Show what the engine will actually receive, not what was uploaded."""
-    series: dict[str, Any] = {}
-    units = "cm-1"
-    for slot in recipe.slots:
-        entry = draft.slots.get(slot.id)
-        if entry is None or entry.merged is None:
-            continue
-        series[slot.label] = (entry.merged.x, entry.merged.y)
-        units = entry.units
-    if series:
+    """Show what the engine will actually receive, not what was uploaded.
+
+    One chart per unit system. A neon spectrum in nm and a silicon one in cm-1
+    share no x axis, and drawing them together under a single label would be a
+    plot nobody can read -- the numbers do not mean the same thing.
+    """
+    groups = draft.unit_groups()
+    for units, slot_ids in groups.items():
+        series: dict[str, Any] = {
+            recipe.slot(sid).label: (
+                draft.slots[sid].merged.x,
+                draft.slots[sid].merged.y,
+            )
+            for sid in slot_ids
+        }
+        if len(groups) > 1:
+            st.caption(f"**{UNIT_LABELS.get(units, units)}**")
         show_spectrum(series, height=260, x_title=x_title(units))
     for slot_id, notes in draft.provenance.items():
         if len(notes) > 1 or notes[0] != "single acquisition":

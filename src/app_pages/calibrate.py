@@ -155,6 +155,9 @@ if st.button(
     context = CalibrationContext(
         laser_wl_nm=optical_path.laser_wl_nm,
         instrument={**profile.instrument_metadata(), **optical_path.metadata()},
+        # Each slot carries the units the user declared for it; a neon lamp in
+        # nm alongside a silicon wafer in cm-1 is perfectly ordinary.
+        input_units=draft.input_units(),
     )
     with st.status("Deriving calibration…", expanded=False) as status:
         try:
