@@ -121,12 +121,13 @@ class CalibrationError(RuntimeError):
 _HINTS: tuple[tuple[str, str], ...] = (
     (
         "must not exceed func output vector length",
-        "peak finding produced a candidate group covering fewer data points "
-        "than the peak model has parameters, so it cannot be fitted. Widen the "
-        "peak window (wlen) under Advanced settings — this is the usual cause "
-        "— or raise the prominence so only well-separated peaks are kept. "
-        "Turning off peak fitting does not help: the group is still built and "
-        "measured either way.",
+        "peak finding grouped peaks so tightly that a group covers fewer data "
+        "points than the model has parameters — typically two candidates a few "
+        "points apart. Raise **minimum width** under Peak finding: it discards "
+        "the narrow candidates that form these groups. Raising the prominence "
+        "or trying another peak-finding strategy also helps. Widening the peak "
+        "window does not, and neither does turning off peak fitting — the "
+        "group is built and measured either way.",
     ),
     (
         "No peaks found",

@@ -15,10 +15,11 @@ from typing import Any, Mapping
 
 import pandas as pd
 import ramanchada2.misc.constants as rc2const
-from ramanchada2.protocols.calibration.xcalibration import (
-    LazerZeroingComponent,
-    XCalibrationComponent,
+from ramanchada2.misc.utils.ramanshift_to_wavelength import (
+    abs_nm_to_shift_cm_1,
+    shift_cm_1_to_abs_nm,
 )
+from ramanchada2.protocols.calibration.xcalibration import fit_peaks
 from ramanchada2.spectrum import Spectrum
 
 #: The VAMAS pipeline's tuned defaults, used when a recipe names none.
@@ -37,86 +38,60 @@ def neon_reference(laser_wl_nm: float | None) -> dict[float, float] | None:
     return rc2const.NEON_WL.get(int(laser_wl_nm))
 
 
-def build_component(
-    action: str,
-    spe: Spectrum,
-    spe_units: str,
-    laser_wl_nm: float | None,
-    ref: Mapping[float, float] | None = None,
-):
-    """The ramanchada2 component this recipe step will use.
+def searched_axis(action: str, spe_units: str) -> str:
+    """The units this step searches in.
 
-    Constructed exactly as the engine constructs it, so its ``fit_peaks`` does
-    the same unit conversion and the same search.
+    The neon curve matches against reference lines in nm, so its peaks are
+    found on a wavelength axis. Laser zeroing works on whatever axis reaches
+    it. This mirrors what the components do, it does not decide it.
     """
-    if action == "laser_zero":
-        return LazerZeroingComponent(
-            laser_wl_nm,
-            spe,
-            spe_units,
-            dict(ref or {SI_REF_CM1: 1}),
-            "cm-1",
-        )
-    reference = dict(ref) if ref else neon_reference(laser_wl_nm)
-    if not reference:
-        raise PeakFindError(
-            "No reference lines for this wavelength; set the laser wavelength "
-            "on the optical path."
-        )
-    return XCalibrationComponent(
-        laser_wl_nm,
-        spe=spe,
-        ref=reference,
-        spe_units=spe_units,
-        ref_units="nm",
-    )
+    return "nm" if action == "x_curve" and spe_units == "cm-1" else spe_units
+
+
+def to_axis(
+    spe: Spectrum, spe_units: str, target_units: str, laser_wl_nm: float | None
+) -> Spectrum:
+    """Convert with ramanchada2's own converters."""
+    if spe_units == target_units or laser_wl_nm is None:
+        return spe
+    if spe_units == "cm-1" and target_units == "nm":
+        return spe.set_new_xaxis(shift_cm_1_to_abs_nm(spe.x, laser_wl_nm))
+    if spe_units == "nm" and target_units == "cm-1":
+        return spe.set_new_xaxis(abs_nm_to_shift_cm_1(spe.x, laser_wl_nm))
+    return spe
 
 
 def run(
-    component,
+    spe: Spectrum,
     find_kw: Mapping[str, Any] | None = None,
     prominence_coeff: float = 3.0,
+    profile: str = "Gaussian",
     should_fit: bool = False,
-) -> tuple[pd.DataFrame, str | None]:
-    """Call the component's own ``fit_peaks`` and report what happened.
+) -> tuple[pd.DataFrame, pd.DataFrame, str | None]:
+    """Call ramanchada2's ``fit_peaks`` on a spectrum.
 
-    Returns its peak table and an error message, never raising: the point is to
-    surface a failure beside the controls that fix it rather than to stop.
+    That function is what the calibration components call, so what it returns
+    here is what the calibration will get. Returns the fit table, the found
+    positions, and an error message -- never raising, because the point is to
+    surface a failure beside the controls that fix it.
     """
     kwargs = dict(find_kw or DEFAULT_FIND_KW)
-    kwargs["prominence"] = float(component.spe.y_noise_MAD()) * float(prominence_coeff)
+    kwargs["prominence"] = float(spe.y_noise_MAD()) * float(prominence_coeff)
     try:
-        frame = component.fit_peaks(kwargs, {}, should_fit)
+        fit_res, found = fit_peaks(
+            spe, kwargs, {}, profile=profile, should_fit=should_fit
+        )
     except Exception as err:  # noqa: BLE001 - reported, that is the feature
-        return pd.DataFrame(), str(err)
+        return pd.DataFrame(), pd.DataFrame(), str(err)
 
-    if frame is None:
-        frame = pd.DataFrame()
-    if not isinstance(frame, pd.DataFrame):
-        frame = pd.DataFrame(frame)
-    return frame, None
+    try:
+        table = fit_res.to_dataframe_peaks()
+    except Exception:  # noqa: BLE001 - the positions still stand
+        table = pd.DataFrame()
 
-
-def searched_spectrum(component) -> tuple[Spectrum, str]:
-    """The spectrum the component actually searches, and its units.
-
-    ``fit_peaks`` converts into the reference's units before searching -- neon
-    is matched against reference lines in nm, not Raman shift -- so a plot of
-    the uploaded axis would not show where the peaks were found.
-    """
-    units = component.ref_units or component.spe_units
-    return (
-        component.convert_units(component.spe, component.spe_units, units),
-        units,
-    )
-
-
-def positions(component) -> pd.DataFrame:
-    """Found positions and heights, from the component's own dict."""
-    found = getattr(component, "spe_pos_dict", None) or {}
-    frame = pd.DataFrame(
+    positions = pd.DataFrame(
         {"position": list(found.keys()), "height": list(found.values())}
     )
-    if not frame.empty:
-        frame = frame.sort_values("position").reset_index(drop=True)
-    return frame
+    if not positions.empty:
+        positions = positions.sort_values("position").reset_index(drop=True)
+    return table, positions, None

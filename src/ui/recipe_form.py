@@ -15,16 +15,8 @@ from spectrastream.calibration.engines.base import explain as explain_error
 from spectrastream.calibration.spec import RecipeSpec, SpectrumSlot
 from spectrastream.ingest import IngestError, load_spectrum
 from spectrastream.merge import MergeError, combine
-from spectrastream.peaks import (
-    DEFAULT_FIND_KW,
-    PeakFindError,
-    build_component,
-    positions,
-    searched_spectrum,
-)
-from spectrastream.peaks import (
-    run as run_peaks,
-)
+from spectrastream.peaks import DEFAULT_FIND_KW, searched_axis, to_axis
+from spectrastream.peaks import run as run_peaks
 from spectrastream.preprocess import (
     BASELINE_METHODS,
     NORMALIZE_LABELS,
@@ -102,6 +94,11 @@ def _peak_controls(
             step=1,
             min_value=1,
             key=f"find_{recipe.id}_{step.id}_width",
+            help=(
+                "Candidates narrower than this are discarded. Raise it when a "
+                "fit reports a group with fewer points than parameters: it is "
+                "the narrow candidates that form those groups."
+            ),
         )
         scope["prominence_coeff"] = cols[2].number_input(
             "Prominence × noise",
@@ -112,6 +109,18 @@ def _peak_controls(
             min_value=0.5,
             key=f"find_{recipe.id}_{step.id}_prom",
             help="How far above the noise a candidate must stand.",
+        )
+        strategies = ["topo", "bgm", "cwt"]
+        chosen = str(current.get("strategy", "topo"))
+        current["strategy"] = st.selectbox(
+            "Finding strategy",
+            options=strategies,
+            index=strategies.index(chosen) if chosen in strategies else 0,
+            key=f"find_{recipe.id}_{step.id}_strategy",
+            help=(
+                "How candidates are found: topographic prominence, a Bayesian "
+                "Gaussian mixture, or continuous wavelet transform."
+            ),
         )
         scope["find_kw"] = current
 
@@ -162,12 +171,10 @@ def _try_peaks(
     draft: CalibrationDraft,
     laser_wl_nm: float | None,
 ) -> None:
-    """Drive ramanchada2's own component and show what it found.
+    """Show what ramanchada2's fit_peaks does with the current settings.
 
-    No algorithm here: this builds the component the step will use and calls
-    its fit_peaks, so the peaks shown are the peaks the calibration will match,
-    on the axis it searches. Finding is cheap and runs on every change; fitting
-    is what takes time, so it is asked for explicitly.
+    Finding is cheap and runs on every change; fitting is what takes time, so
+    it is asked for explicitly.
     """
     entry = draft.slots.get(slot.id)
     if entry is None or entry.merged is None:
@@ -177,14 +184,25 @@ def _try_peaks(
     find_kw, coeff, _ = _peak_settings(recipe, draft, slot.id)
     steps = _steps_using(recipe, slot.id)
     action = steps[0].action if steps else "x_curve"
+    profiles = _profiles_for(recipe, slot.id)
+    profile = (
+        profiles[0]
+        if len(profiles) == 1
+        else st.selectbox(
+            "Peak profile",
+            options=profiles,
+            index=0,
+            key=f"prof_{recipe.id}_{slot.id}",
+        )
+    )
 
-    try:
-        component = build_component(action, entry.merged, entry.units, laser_wl_nm)
-    except PeakFindError as err:
-        st.caption(f":orange[{err}]")
-        return
+    # The neon curve searches in nm, because that is where it matches its
+    # reference lines. Showing the cm-1 axis would show peaks at positions the
+    # calibration never uses.
+    units = searched_axis(action, entry.units)
+    working = to_axis(entry.merged, entry.units, units, laser_wl_nm)
 
-    frame, error = run_peaks(component, find_kw, coeff, should_fit=False)
+    _, found, error = run_peaks(working, find_kw, coeff, profile, should_fit=False)
     if error:
         st.error(f"Peak finding fails here: {error}", icon=":material/error:")
         hint = explain_error(Exception(error))
@@ -192,14 +210,12 @@ def _try_peaks(
             st.caption(hint)
         return
 
-    working, units = searched_spectrum(component)
-    found = positions(component)
     if units != entry.units:
         st.caption(
-            f"Searched in {UNIT_LABELS.get(units, units)} — the units this step "
-            "matches its reference lines in."
+            f"Searched in {UNIT_LABELS.get(units, units)} — where this step "
+            "matches its reference lines."
         )
-    st.caption(f"**{len(found)} peaks found** with these settings.")
+    st.caption(f"**{len(found)} peaks found.**")
     show_spectrum(
         {slot.label: (working.x, working.y)},
         height=260,
@@ -212,32 +228,29 @@ def _try_peaks(
         "Fit these peaks",
         key=f"try_{recipe.id}_{slot.id}",
         icon=":material/play_arrow:",
-        help="Fitting a profile to every candidate is slow — seconds to minutes.",
+        help="Fitting every candidate is slow — seconds to minutes.",
     ):
         with st.spinner(f"Fitting {len(found)} peaks…"):
-            fitted_frame, fit_error = run_peaks(
-                component, find_kw, coeff, should_fit=True
+            table, _, fit_error = run_peaks(
+                working, find_kw, coeff, profile, should_fit=True
             )
-        entry.peak_trial = (fitted_frame, fit_error, True)
+        entry.peak_trial = (table, fit_error, True)
 
     trial = getattr(entry, "peak_trial", None)
     if trial is None:
-        st.dataframe(frame, width="stretch", height=180)
+        st.dataframe(found, width="stretch", height=180)
         return
-    fitted_frame, fit_error, _ = trial
+    table, fit_error, _ = trial
 
     if fit_error:
-        st.error(
-            f"Fitting fails with these settings: {fit_error}",
-            icon=":material/error:",
-        )
+        st.error(f"Fitting fails: {fit_error}", icon=":material/error:")
         hint = explain_error(Exception(fit_error))
         if hint:
             st.caption(hint)
         return
 
-    st.success(f"{len(fitted_frame)} peaks fitted.", icon=":material/check_circle:")
-    st.dataframe(fitted_frame, width="stretch", height=180)
+    st.success(f"{len(table)} peaks fitted.", icon=":material/check_circle:")
+    st.dataframe(table, width="stretch", height=180)
 
 
 def _slot_uploader(
