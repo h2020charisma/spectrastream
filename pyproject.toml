@@ -32,10 +32,14 @@ classifiers = [
 ]
 requires-python = ">=3.10,<3.13"
 dependencies = [
+  "nexusformat>=1.0.6,<3.0.0",
   "pandas>=2.2.2,<3.0.0",
+  "pyambit",
+  "pydantic>=2.7,<3.0.0",
   "pydantic-settings>=2.14.2,<3.0.0",
-  "ramanchada2>=1.3.1,<2.0.0",
-  "streamlit>=1.35.0,<2.0.0",
+  "pyyaml>=6.0,<7.0",
+  "ramanchada2",
+  "streamlit>=1.57,<2.0.0",
 ]
 
 [project.urls]
@@ -52,6 +56,23 @@ dev = [
 
 [tool.uv]
 package = false
+
+# Both are unreleased branches developed alongside this app: ramanchada2
+# `issue233` adds the portable JSON calibration model
+# (CalibrationModel.to_dict/from_dict) and the CWA 18133 §8 exporters; pyambit
+# `study_config` is the NeXus writer. Neither is on PyPI in a form that carries
+# these. Note issue233 still reports __version__ == "1.3.1", so a version pin
+# cannot distinguish it from the PyPI release.
+#
+# LOCAL DEV: editable sibling checkouts, so edits there are picked up without
+# re-locking. CI and `docker build` cannot see paths outside the build context —
+# swap in the git sources below before pushing a deployable image:
+#
+#   ramanchada2 = { git = "https://github.com/h2020charisma/ramanchada2", branch = "issue233" }
+#   pyambit = { git = "https://github.com/ideaconsult/pyambit", branch = "study_config" }
+[tool.uv.sources]
+ramanchada2 = { path = "../ramanchada2", editable = true }
+pyambit = { path = "../pyambit-main", editable = true }
 
 [tool.ruff]
 line-length = 88
