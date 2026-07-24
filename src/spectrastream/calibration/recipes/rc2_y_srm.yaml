@@ -1,0 +1,27 @@
+# Relative intensity calibration on its own, for users whose wavenumber axis is
+# already trustworthy but whose intensity response is not.
+id: rc2.y_srm
+label: Relative intensity only (SRM)
+engine: rc2
+version: 1
+description: >
+  Corrects the intensity response against a certified standard reference
+  material, leaving the wavenumber axis untouched.
+
+slots:
+  - id: srm
+    label: Standard reference material spectrum
+    material: SRM
+    required: true
+    units: cm-1
+    help: >
+      Measured spectrum of a NIST SRM or calibrated LED source. The certificate
+      is chosen from the laser wavelength unless the recipe names one.
+
+steps:
+  - id: y_intensity
+    label: Relative intensity (SRM)
+    action: y_intensity
+    inputs: [srm]
+    produces: y_response
+    params: {}

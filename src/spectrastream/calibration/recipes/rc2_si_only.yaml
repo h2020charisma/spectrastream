@@ -1,0 +1,28 @@
+# Laser zeroing alone. For instruments whose axis shape is trusted (vendor
+# calibrated) but whose laser line drifts -- a silicon wafer is far easier to
+# come by than a neon lamp, so this is the low-barrier entry point.
+id: rc2.si_only
+label: Silicon only (laser zeroing)
+engine: rc2
+version: 1
+description: >
+  Shifts the axis so the silicon band lands on 520.45 cm-1. Corrects an offset,
+  not the shape of the axis.
+
+slots:
+  - id: si
+    label: Silicon spectrum
+    material: Si
+    required: true
+    units: cm-1
+    help: Silicon wafer spectrum covering the 520.45 cm-1 band.
+
+steps:
+  - id: laser_zero
+    label: Laser zeroing (silicon)
+    action: laser_zero
+    inputs: [si]
+    produces: x_zero
+    params:
+      si_profile: Pearson4
+      should_fit: true
