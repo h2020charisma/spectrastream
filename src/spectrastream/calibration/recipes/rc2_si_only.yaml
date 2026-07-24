@@ -40,4 +40,8 @@ steps:
     params:
       si_profile: Pearson4
       should_fit: true
+      # Declared so the peak-finding controls appear for silicon too; the
+      # band wants different settings from the neon lines.
+      find_kw: {wlen: 200, width: 1}
+      prominence_coeff: 3
       window_cm1: 100

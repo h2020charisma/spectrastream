@@ -189,6 +189,26 @@ def _curve_figure(calmodel: CalibrationModel):
         return None
 
 
+def _y_figure(component, spe, certificate):
+    """The intensity-calibration component's own plot.
+
+    YCalibrationComponent plots its certificate; drawn beside the measured
+    reference it shows the response being corrected for, which is the whole
+    content of the step.
+    """
+    import matplotlib.pyplot as plt
+
+    try:
+        fig, ax = plt.subplots(figsize=(7, 3))
+        spe.plot(ax=ax, label="measured reference")
+        component.plot(ax=ax.twinx(), label=f"certificate {certificate.id}")
+        ax.grid(alpha=0.3)
+        fig.tight_layout()
+        return fig
+    except Exception:  # noqa: BLE001 - a diagnostic must never break the fit
+        return None
+
+
 def _zero_figure(component, spe, zero_nm: float):
     """ramanchada2's fit of the silicon band, with the position it settled on."""
     import matplotlib.pyplot as plt
@@ -418,6 +438,7 @@ def _action_y_intensity(
     component.name = step.label
     calmodel.components.append(component)
 
+    figure = _y_figure(component, spe, certificate)
     lo, hi = certificate.raman_shift or (float(min(spe.x)), float(max(spe.x)))
     grid = np.linspace(float(lo), float(hi), 200)
     return (
@@ -429,6 +450,7 @@ def _action_y_intensity(
                 kind="curve",
                 text=f"certificate {certificate.id}",
                 curve=(grid.tolist(), np.asarray(certificate.Y(grid)).tolist()),
+                figure=figure,
             )
         ],
     )

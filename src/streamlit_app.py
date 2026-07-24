@@ -38,12 +38,12 @@ pages = [
     ),
     st.Page(
         "app_pages/convert.py",
-        title="Convert",
+        title="Apply & export",
         icon=":material/upload_file:",
     ),
     st.Page(
         "app_pages/calibrate.py",
-        title="Calibrate",
+        title="Derive calibration",
         icon=":material/tune:",
     ),
     st.Page(

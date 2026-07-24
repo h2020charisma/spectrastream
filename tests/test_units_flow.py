@@ -100,3 +100,40 @@ def test_silicon_recipes_offer_a_crop(neon_spectrum):
 def test_every_slot_declares_its_units(recipe_id):
     for slot in get_recipe(recipe_id).slots:
         assert slot.units in ("cm-1", "nm", "pixel")
+
+
+def test_a_slot_is_resolved_on_the_run_its_file_arrives(neon_spectrum):
+    """The peak panel reads entry.merged. If merging only happened later in
+    the page, a freshly uploaded spectrum showed "upload a spectrum" until
+    something else forced a rerun."""
+    from spectrastream.calibration import get_recipe
+    from ui.recipe_form import _resolve_slot
+    from ui.state import CalibrationDraft, SlotInput
+
+    recipe = get_recipe("rc2.ne_si")
+    draft = CalibrationDraft(recipe_id=recipe.id)
+    entry = SlotInput(units="cm-1")
+    entry.loaded = [neon_spectrum]
+    entry.exposures = [None]
+    draft.slots["neon"] = entry
+
+    assert entry.merged is None
+    assert _resolve_slot(recipe.slot("neon"), draft) is None
+    assert entry.merged is not None, "the slot was not resolved when it loaded"
+    assert draft.provenance["neon"], "nothing recorded about what was done"
+
+
+def test_normalisation_is_flagged_as_destroying_intensity():
+    """Intensity calibration compares counts to a certified response, so
+    rescaling the measurement makes the comparison meaningless."""
+    from spectrastream.preprocess import PreprocessStep, destroys_intensity
+
+    steps = [
+        PreprocessStep(op="normalize", enabled=True),
+        PreprocessStep(op="baseline", enabled=True),
+        PreprocessStep(op="trim", enabled=True),
+    ]
+    assert destroys_intensity(steps) == ["Normalise"]
+
+    steps[0].enabled = False
+    assert destroys_intensity(steps) == []

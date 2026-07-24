@@ -153,3 +153,50 @@ def show_spectrum(
             f"Chart decimated to about {MAX_PLOT_POINTS} points for display; "
             "downloads always contain every point."
         )
+
+
+def show_twin(
+    left: tuple[str, tuple],
+    right: tuple[str, tuple],
+    x_title: str = X_TITLE,
+    height: int = 280,
+    caption: str | None = None,
+) -> None:
+    """Two traces on one x axis with independent y axes.
+
+    For before/after of an intensity calibration, where the two differ by
+    orders of magnitude: on a shared y axis one of them is pinned flat against
+    the baseline and shows nothing. This is the old app's ax.twinx().
+    """
+    left_label, (lx, ly) = left
+    right_label, (rx, ry) = right
+    colors = series_colors([left_label, right_label])
+
+    def _one(label, x, y, color, axis):
+        frame = spectra_frame({label: (x, y)})
+        return (
+            alt.Chart(frame)
+            .mark_line(strokeWidth=1.6, clip=True)
+            .encode(
+                x=alt.X("x:Q", title=x_title, scale=alt.Scale(zero=False, nice=False)),
+                y=alt.Y("y:Q", title=label, axis=axis, scale=alt.Scale(zero=False)),
+                color=alt.value(color),
+                tooltip=[
+                    alt.Tooltip("x:Q", title=x_title, format=".2f"),
+                    alt.Tooltip("y:Q", title=label, format=".4g"),
+                ],
+            )
+        )
+
+    chart = (
+        alt.layer(
+            _one(left_label, lx, ly, colors[0], alt.Axis(orient="left")),
+            _one(right_label, rx, ry, colors[1], alt.Axis(orient="right")),
+        )
+        .resolve_scale(y="independent")
+        .properties(height=height)
+    )
+
+    st.altair_chart(chart, width="stretch")
+    if caption:
+        st.caption(caption)

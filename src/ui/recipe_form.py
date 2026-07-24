@@ -24,6 +24,7 @@ from spectrastream.preprocess import (
     SMOOTH_METHODS,
     PreprocessError,
     apply_steps,
+    destroys_intensity,
 )
 from ui.charts import show_spectrum, x_title
 from ui.state import CalibrationDraft, SlotInput
@@ -163,6 +164,41 @@ def _peak_settings(recipe: RecipeSpec, draft: CalibrationDraft, slot_id: str):
     coeff = float(scope.get("prominence_coeff", step.params.get("prominence_coeff", 3)))
     should_fit = bool(scope.get("should_fit", step.params.get("should_fit", False)))
     return dict(find_kw), coeff, should_fit
+
+
+def _resolve_slot(slot: SpectrumSlot, draft: CalibrationDraft) -> str | None:
+    """Merge and preprocess one slot into the spectrum the engine will see.
+
+    Called from the uploader rather than only from resolve_inputs, because the
+    peak panel below needs `merged` on the *same* run the file arrives. Doing
+    it later meant a freshly uploaded spectrum showed "upload a spectrum" until
+    something else forced a rerun.
+    """
+    entry = draft.slots.get(slot.id)
+    if entry is None or not entry.loaded:
+        if entry is not None:
+            entry.merged = None
+        return None
+
+    try:
+        merged, how = combine(
+            [item.spectrum for item in entry.loaded],
+            entry.exposures,
+            strategy=slot.merge,
+        )
+    except MergeError as err:
+        entry.merged = None
+        return f"{slot.label}: {err}"
+
+    try:
+        merged, applied = apply_steps(merged, entry.steps_for(slot))
+    except PreprocessError as err:
+        entry.merged = None
+        return f"{slot.label}: {err}"
+
+    entry.merged = merged
+    draft.provenance[slot.id] = [how, *applied]
+    return None
 
 
 def _try_peaks(
@@ -316,7 +352,11 @@ def _slot_uploader(
     if len(entry.loaded) > 1:
         _exposure_inputs(slot, draft, entry)
 
-    _preprocess_controls(slot, draft, entry)
+    _preprocess_controls(slot, recipe, draft, entry)
+
+    problem = _resolve_slot(slot, draft)
+    if problem:
+        problems.append(problem)
 
     with st.expander("Peak finding", icon=":material/graphic_eq:"):
         st.caption(
@@ -356,13 +396,31 @@ def _exposure_inputs(slot, draft: CalibrationDraft, entry: SlotInput) -> None:
             )
 
 
-def _preprocess_controls(slot, draft: CalibrationDraft, entry: SlotInput) -> None:
+def _preprocess_controls(
+    slot, recipe: RecipeSpec, draft: CalibrationDraft, entry: SlotInput
+) -> None:
     """Toggles and parameters for the preprocessing this recipe offers."""
     if not slot.preprocess:
         return
 
     steps = entry.steps_for(slot)
+    # Intensity calibration compares measured counts against a certified
+    # response, so anything that rescales the measurement makes the comparison
+    # meaningless. Peak-position steps do not care.
+    intensity_step = any(
+        s.produces == "y_response" for s in _steps_using(recipe, slot.id)
+    )
     with st.expander("Preprocessing", icon=":material/tune:"):
+        if intensity_step:
+            offenders = destroys_intensity(steps)
+            if offenders:
+                st.warning(
+                    f"**{', '.join(offenders)}** rescales the intensities, and "
+                    "this spectrum is used for intensity calibration — which "
+                    "compares measured counts against a certified response. "
+                    "Turn it off, or the correction will be meaningless.",
+                    icon=":material/warning:",
+                )
         for index, step in enumerate(steps):
             key = f"pp_{draft.recipe_id}_{slot.id}_{step.op}_{index}"
             step.enabled = st.checkbox(
@@ -441,37 +499,20 @@ def slot_uploaders(
 
 
 def resolve_inputs(recipe: RecipeSpec, draft: CalibrationDraft) -> list[str]:
-    """Merge and preprocess each slot into the single spectrum the engine sees.
+    """Ensure every slot has been merged and preprocessed.
 
-    Returns problems; on success ``draft.slots[...].merged`` is populated and
-    ``draft.provenance`` records what was done, so the UI never presents a
-    silently altered spectrum.
+    The uploaders already resolve each slot as it renders; this catches any
+    that did not (a slot whose uploader was not reached) and returns whatever
+    went wrong.
     """
-    problems: list[str] = []
-    draft.provenance = {}
+    problems = []
     for slot in recipe.slots:
         entry = draft.slots.get(slot.id)
-        if entry is None or not entry.loaded:
+        if entry is None or not entry.loaded or entry.merged is not None:
             continue
-        spectra = [item.spectrum for item in entry.loaded]
-        try:
-            merged, how = combine(spectra, entry.exposures, strategy=slot.merge)
-        except MergeError as err:
-            problems.append(f"{slot.label}: {err}")
-            entry.merged = None
-            continue
-
-        notes = [how]
-        try:
-            merged, applied = apply_steps(merged, entry.steps_for(slot))
-        except PreprocessError as err:
-            problems.append(f"{slot.label}: {err}")
-            entry.merged = None
-            continue
-        notes.extend(applied)
-
-        entry.merged = merged
-        draft.provenance[slot.id] = notes
+        problem = _resolve_slot(slot, draft)
+        if problem:
+            problems.append(problem)
     return problems
 
 

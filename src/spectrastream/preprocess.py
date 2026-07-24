@@ -72,6 +72,20 @@ class PreprocessError(ValueError):
     """A preprocessing operation could not be applied."""
 
 
+#: Operations that destroy the intensity scale. Harmless for steps that only
+#: care about peak *positions*, fatal for intensity calibration: the whole
+#: point there is the ratio of measured counts to a certified response, and
+#: rescaling the measurement makes that ratio meaningless.
+INTENSITY_DESTROYING = {"normalize"}
+
+
+def destroys_intensity(steps: list["PreprocessStep"]) -> list[str]:
+    """Enabled steps that would invalidate an intensity calibration."""
+    return [
+        s.display_label() for s in steps if s.enabled and s.op in INTENSITY_DESTROYING
+    ]
+
+
 def _op_trim(spe: Spectrum, params: Mapping[str, Any]) -> Spectrum:
     low = params.get("min")
     high = params.get("max")

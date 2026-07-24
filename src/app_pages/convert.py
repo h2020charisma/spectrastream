@@ -1,4 +1,9 @@
-"""The floor: upload a spectrum, download NeXus.
+"""Apply a calibration to a spectrum and export it.
+
+This is where a derived calibration gets *used*: pick the instrument and
+optical path, choose one of its saved calibrations, and it is applied to the
+uploaded spectrum before export. Deriving one happens on the other page.
+
 
 Two things are required and everything else is optional. The axis units and the
 excitation wavelength are not metadata *about* the data -- they are what makes
@@ -154,6 +159,7 @@ calibrated = None
 fitted = None
 apply_calibration = False
 
+st.subheader("Apply a calibration")
 if optical_path is not None and optical_path.calibrations:
     labels = {c.id: c.label for c in optical_path.calibrations}
     default_id = optical_path.active_calibration_id or optical_path.calibrations[-1].id
@@ -169,8 +175,14 @@ if optical_path is not None and optical_path.calibrations:
         apply_calibration = True
 elif optical_path is not None:
     st.caption(
-        f"Optical path {optical_path.op_id} has no calibration yet — the file "
-        "will carry its metadata but an uncorrected axis."
+        f"Optical path {optical_path.op_id} has no calibration yet — derive "
+        "one on the Derive calibration page, or export with an uncorrected "
+        "axis."
+    )
+else:
+    st.caption(
+        "Select an instrument and optical path above to apply one of its "
+        "calibrations. Without one the spectrum is exported uncorrected."
     )
 
 if apply_calibration and calibration_record is not None:

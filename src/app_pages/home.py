@@ -18,14 +18,14 @@ st.markdown(
 left, middle, right = st.columns(3)
 with left:
     with st.container(border=True):
-        st.markdown("**1 · Convert**")
+        st.markdown("**1 · Apply & export**")
         st.caption(
-            "Drop in a spectrum and download NeXus. All you need beyond the "
-            "file is its units and the laser wavelength."
+            "Drop in a spectrum, apply a saved calibration to it if you have "
+            "one, and download NeXus."
         )
         st.page_link(
             "app_pages/convert.py",
-            label="Convert a spectrum",
+            label="Apply and export",
             icon=":material/upload_file:",
         )
 with middle:
@@ -42,7 +42,7 @@ with middle:
         )
 with right:
     with st.container(border=True):
-        st.markdown("**3 · Calibrate**")
+        st.markdown("**3 · Derive calibration**")
         st.caption(
             "Derive a calibration from reference spectra and attach it to an "
             "optical path for reuse."

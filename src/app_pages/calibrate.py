@@ -10,6 +10,7 @@ because that is the level at which it is valid: change the grating and the
 correction changes; change the wavelength and even the reference lines differ.
 """
 
+import numpy as np
 import streamlit as st
 
 from spectrastream.calibration import (
@@ -21,7 +22,7 @@ from spectrastream.calibration import (
 )
 from spectrastream.profiles import CalibrationRecord, SourceFile
 from ui import profile_store
-from ui.charts import show_spectrum
+from ui.charts import show_spectrum, show_twin
 from ui.recipe_form import (
     certificate_control,
     parameter_controls,
@@ -203,19 +204,49 @@ for outcome in fitted.outcomes():
     else:
         st.markdown(f":material/error: {outcome.label} — :red[{outcome.detail}]")
 
-# Show the effect on whichever reference spectrum drove the first step.
-primary_id = next(iter(draft.available_slots()), None)
-if primary_id is not None:
-    entry = draft.slots[primary_id]
-    corrected = fitted.apply(entry.merged, spe_units=entry.units)
-    show_spectrum(
-        {
-            "Before": (entry.merged.x, entry.merged.y),
-            "After": (corrected.x, corrected.y),
-        },
-        height=280,
-        caption="Effect of the calibration on the reference spectrum it came from.",
-    )
+# The calibrated spectrum after every step, for each reference that went in.
+st.markdown("**Calibrated spectra**")
+st.caption(
+    f"Each reference spectrum with the complete calibration applied — "
+    f"output axis in {fitted.output_units or 'cm-1'}."
+)
+for slot_id in draft.available_slots():
+    entry = draft.slots[slot_id]
+    try:
+        corrected = fitted.apply(entry.merged, spe_units=entry.units)
+    except Exception as err:  # noqa: BLE001 - shown, not hidden
+        st.caption(f":red[{recipe.slot(slot_id).label}: {err}]")
+        continue
+    label = recipe.slot(slot_id).label
+    before = (entry.merged.x, entry.merged.y)
+    after = (corrected.x, corrected.y)
+
+    # Intensity calibration rescales y by orders of magnitude, so overlaying
+    # before and after pins one of them to the axis and shows nothing. Two
+    # charts, for the same reason nm and cm-1 do not share an x axis.
+    scale_before = float(np.nanmax(np.abs(np.asarray(entry.merged.y)))) or 1.0
+    scale_after = float(np.nanmax(np.abs(np.asarray(corrected.y)))) or 1.0
+    ratio = max(scale_before, scale_after) / min(scale_before, scale_after)
+
+    if ratio > 10:
+        # Independent y axes: on a shared one the rescaled trace is pinned flat
+        # against the baseline and shows nothing.
+        show_twin(
+            (f"{label} — as measured", before),
+            (f"{label} — calibrated", after),
+            caption=(
+                f"Intensities rescaled by about {ratio:,.0f}×, so each trace "
+                "has its own y axis — left as measured, right calibrated."
+            ),
+        )
+    else:
+        show_spectrum(
+            {
+                f"{label} — as measured": before,
+                f"{label} — calibrated": after,
+            },
+            height=260,
+        )
 
 with st.expander("Diagnostics", icon=":material/query_stats:"):
     diagnostics = fitted.diagnostics()
