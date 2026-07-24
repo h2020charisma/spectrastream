@@ -42,20 +42,34 @@ class LoadedSpectrum:
         return float(min(x)), float(max(x))
 
 
-def _spectrum_metadata(spe: Spectrum) -> dict[str, Any]:
+#: Keys ramanchada2 fills in from the path it was handed. Since uploads are
+#: parsed from a temporary file, these hold a meaningless name like
+#: "tmpluguj6qq.spc" -- worse than absent, because they look authoritative and
+#: would travel into the published NeXus record. The real upload name is
+#: recorded separately as LoadedSpectrum.filename.
+_PATH_DERIVED_KEYS = {"original file", "filename", "file", "temporary file"}
+
+
+def _spectrum_metadata(spe: Spectrum, tmp_name: str) -> dict[str, Any]:
     """Metadata the vendor format carried, if any. Never fatal."""
     meta: dict[str, Any] = {}
     try:
         keys = spe.meta.get_all_keys()
     except (AttributeError, TypeError):
         return meta
+
+    tmp_stem = os.path.basename(tmp_name)
     for key in keys:
-        if key.startswith("@"):
+        if key.startswith("@") or str(key).strip().lower() in _PATH_DERIVED_KEYS:
             continue
         try:
-            meta[str(key)] = spe.meta[key]
+            value = spe.meta[key]
         except (KeyError, TypeError):
             continue
+        # Catch any other key that happens to hold the temp path.
+        if isinstance(value, str) and tmp_stem in value:
+            continue
+        meta[str(key)] = value
     return meta
 
 
@@ -98,5 +112,5 @@ def load_spectrum(
         sha256=hashlib.sha256(data).hexdigest(),
         filetype=extension,
         units=units,
-        source_metadata=_spectrum_metadata(spe),
+        source_metadata=_spectrum_metadata(spe, tmp_name),
     )

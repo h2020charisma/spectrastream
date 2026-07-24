@@ -14,8 +14,14 @@ st.set_page_config(
     layout="wide",
 )
 
-from ui import profile_store  # noqa: E402  - must follow set_page_config
+from pathlib import Path  # noqa: E402  - must follow set_page_config
+
+from ui import profile_store  # noqa: E402
 from ui.state import get_state  # noqa: E402
+
+_LOGO = Path(__file__).parent / "front_end" / "images" / "logo_charisma.jpg"
+if _LOGO.exists():
+    st.logo(str(_LOGO))
 
 state = get_state()
 

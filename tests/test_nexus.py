@@ -22,7 +22,11 @@ from spectrastream.nexus import (
     nexus_filename,
     spectrum_to_nexus,
 )
-from spectrastream.profiles import CalibrationRecord, InstrumentProfile
+from spectrastream.profiles import (
+    CalibrationRecord,
+    InstrumentProfile,
+    OpticalPath,
+)
 
 
 @contextmanager
@@ -90,20 +94,23 @@ def test_local_temp_path_does_not_leak_into_the_record(target_spectrum):
         assert tempfile.gettempdir() not in str(root.attrs["file_name"])
 
 
-def test_profile_metadata_reaches_the_file(target_spectrum):
+def test_profile_and_path_metadata_both_reach_the_file(target_spectrum):
     profile = InstrumentProfile(
         name="Lab 2 WITec",
         vendor="WITec",
         model="Alpha 300R",
         serial="SN-12345",
-        laser_wl_nm=532,
-        grating="600 g/mm",
     )
-    data = spectrum_to_nexus(target_spectrum.spectrum, profile=profile)
+    path = OpticalPath(op_id="OP2", laser_wl_nm=532, grating="600 g/mm")
+    data = spectrum_to_nexus(
+        target_spectrum.spectrum, profile=profile, optical_path=path
+    )
     with _read_back(data) as (_, tree):
         assert "WITec" in tree
         assert "Alpha 300R" in tree
         assert "SN-12345" in tree
+        assert "OP2" in tree
+        assert "600 g/mm" in tree
 
 
 def test_partial_profile_is_accepted(target_spectrum):
@@ -126,11 +133,9 @@ def test_laser_wavelength_is_the_one_thing_demanded():
     """Units and excitation wavelength are what make the numbers mean
     something; everything else genuinely is optional."""
     assert missing_minimum(None) == ["laser wavelength"]
-    assert missing_minimum(InstrumentProfile(name="unspecified rig")) == [
-        "laser wavelength"
-    ]
-    assert missing_minimum(InstrumentProfile(name="x", laser_wl_nm=532)) == []
-    # Supplied directly rather than via a profile.
+    assert missing_minimum(OpticalPath(op_id="OP1")) == ["laser wavelength"]
+    assert missing_minimum(OpticalPath(op_id="OP1", laser_wl_nm=532)) == []
+    # Supplied directly rather than via a path.
     assert missing_minimum(None, laser_wl_nm=785) == []
 
 
@@ -147,7 +152,8 @@ def test_acquisition_fields_reach_the_record(target_spectrum):
     )
     data = spectrum_to_nexus(
         target_spectrum.spectrum,
-        profile=InstrumentProfile(name="rig", laser_wl_nm=532),
+        profile=InstrumentProfile(name="rig"),
+        optical_path=OpticalPath(op_id="OP9", laser_wl_nm=532),
         acquisition=acq,
     )
     with _read_back(data) as (_, tree):
@@ -162,17 +168,16 @@ def test_acquisition_uses_the_keys_pyambit_maps_to_nexus_paths():
     meta = Acquisition(integration_time_ms=30000).as_metadata()
     assert "integration time" in meta
 
-    profile_meta = InstrumentProfile(
-        name="x", grating="600", pin_hole_size="50"
-    ).instrument_metadata()
-    assert "grating" in profile_meta
-    assert "pin hole size" in profile_meta
+    path_meta = OpticalPath(op_id="OP1", grating="600", pin_hole_size="50").metadata()
+    assert "grating" in path_meta
+    assert "pin hole size" in path_meta
 
 
 def test_acquisition_outranks_the_file_header():
     """It describes this measurement; the header describes whatever was saved."""
     meta = build_metadata(
-        profile=InstrumentProfile(name="p", laser_wl_nm=532),
+        profile=InstrumentProfile(name="p"),
+        optical_path=OpticalPath(op_id="OP1", laser_wl_nm=532),
         source_metadata={"sample": "stale value"},
         acquisition=Acquisition(sample="the real one"),
     )
@@ -181,7 +186,8 @@ def test_acquisition_outranks_the_file_header():
 
 def test_empty_metadata_values_are_dropped_not_blanked():
     meta = build_metadata(
-        profile=InstrumentProfile(name="x", vendor="", grating=None),
+        profile=InstrumentProfile(name="x", vendor=""),
+        optical_path=OpticalPath(op_id="OP1", grating=None),
         source_metadata={"junk": "   ", "real": "value"},
     )
     assert "junk" not in meta
@@ -207,9 +213,9 @@ def test_calibration_provenance_is_recorded_without_the_method():
     assert not any("secret" in str(v) for v in meta.values())
 
 
-def test_profile_metadata_wins_over_stale_vendor_headers():
+def test_path_metadata_wins_over_stale_vendor_headers():
     meta = build_metadata(
-        profile=InstrumentProfile(name="p", grating="600 g/mm"),
+        optical_path=OpticalPath(op_id="OP1", grating="600 g/mm"),
         source_metadata={"grating": "300 g/mm"},
     )
     assert meta["grating"] == "600 g/mm"

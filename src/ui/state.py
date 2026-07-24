@@ -14,7 +14,7 @@ import streamlit as st
 from spectrastream.acquisition import Acquisition
 from spectrastream.calibration.engines.base import FittedCalibration
 from spectrastream.ingest import LoadedSpectrum
-from spectrastream.profiles import InstrumentProfile, ProfileLibrary
+from spectrastream.profiles import InstrumentProfile, OpticalPath, ProfileLibrary
 
 STATE_KEY = "spectrastream"
 
@@ -44,10 +44,17 @@ class AppState:
     library_loaded: bool = False
     storage_persistent: bool = True
     active_profile_id: str | None = None
+    #: Which optical path of that instrument. Calibration and wavelength hang
+    #: off the path, so this is the more meaningful selection of the two.
+    active_optical_path_id: str | None = None
     target: LoadedSpectrum | None = None
     #: How the target spectrum was measured. Persists across page switches so
     #: a user does not retype it after wandering off to edit a profile.
     acquisition: Acquisition = field(default_factory=Acquisition)
+    #: Fields prefilled from the uploaded file's own header, so the UI can say
+    #: which values it guessed rather than presenting them as the user's.
+    guessed_fields: set[str] = field(default_factory=set)
+    guessed_laser_wl_nm: float | None = None
     draft: CalibrationDraft = field(default_factory=CalibrationDraft)
 
     @property
@@ -56,8 +63,30 @@ class AppState:
             return None
         return self.library.get(self.active_profile_id)
 
+    @property
+    def active_optical_path(self) -> OpticalPath | None:
+        """The selected optical path, defaulting to the only one if unambiguous.
+
+        The wavelength lives here rather than on the instrument, so almost
+        everything downstream wants this rather than the profile.
+        """
+        profile = self.active_profile
+        if profile is None:
+            return None
+        path = profile.optical_path(self.active_optical_path_id)
+        if path is not None:
+            return path
+        if len(profile.optical_paths) == 1:
+            return profile.optical_paths[0]
+        return None
+
     def set_active_profile(self, profile_id: str | None) -> None:
+        if profile_id != self.active_profile_id:
+            self.active_optical_path_id = None
         self.active_profile_id = profile_id
+
+    def set_active_optical_path(self, path_id: str | None) -> None:
+        self.active_optical_path_id = path_id
 
 
 def get_state() -> AppState:

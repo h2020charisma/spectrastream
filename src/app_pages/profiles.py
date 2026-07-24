@@ -1,14 +1,19 @@
-"""Instrument profiles, stored in this browser.
+"""Instruments and their optical paths, stored in this browser.
 
-A profile is the unit people recognise -- "my 532 nm rig" -- and it is what
-turns a bare spectrum into a described one. Only a name is required: demanding
-a serial number before someone can export a file would defeat the floor.
+Two levels, because that is how a lab works. The instrument is the box; an
+optical path is one configuration of it — wavelength, grating, objective, slit
+— and one instrument commonly has several. Calibrations hang off the path, not
+the instrument: a correction derived at 532 nm says nothing about a 785 nm path.
+
+Only names are required. Demanding a serial number before someone can export a
+file would defeat the point of the floor.
 """
 
 import streamlit as st
 
 from spectrastream.profiles import (
     InstrumentProfile,
+    OpticalPath,
     export_bytes,
     import_bytes,
     merge,
@@ -28,7 +33,7 @@ if not state.storage_persistent:
     )
 
 
-@st.dialog("Instrument profile", width="large")
+@st.dialog("Instrument", width="large")
 def edit_profile(profile: InstrumentProfile | None):
     creating = profile is None
     draft = profile or InstrumentProfile(name="")
@@ -37,59 +42,18 @@ def edit_profile(profile: InstrumentProfile | None):
         name = st.text_input(
             "Name",
             value=draft.name,
-            placeholder="e.g. Lab 2 WITec, 532 nm",
+            placeholder="e.g. Lab 2 WITec",
             help="The only required field.",
         )
-
         cols = st.columns(2)
-        vendor = cols[0].text_input("Vendor", value=draft.vendor or "")
+        vendor = cols[0].text_input("Make", value=draft.vendor or "")
         model = cols[1].text_input("Model", value=draft.model or "")
-
         cols = st.columns(2)
         serial = cols[0].text_input("Serial number", value=draft.serial or "")
-        laser = cols[1].number_input(
-            "Laser wavelength (nm)",
-            value=float(draft.laser_wl_nm) if draft.laser_wl_nm else 0.0,
-            step=1.0,
-            format="%.1f",
-            help="Leave at 0 if unknown. Needed for calibration, not for export.",
-        )
-
-        # Field names follow the CHARISMA/VAMAS reporting template front
-        # sheet, so a profile and a round-robin template describe an
-        # instrument the same way.
-        with st.expander("Optical path (all optional)"):
-            cols = st.columns(2)
-            device_type = cols[0].text_input(
-                "Device type", value=draft.device_type or ""
-            )
-            numerical_aperture = cols[1].text_input(
-                "Collection optics", value=draft.numerical_aperture or ""
-            )
-            cols = st.columns(2)
-            grating = cols[0].text_input("Grating (l/mm)", value=draft.grating or "")
-            slit = cols[1].text_input("Slit size (µm)", value=draft.slit or "")
-            cols = st.columns(2)
-            pin_hole_size = cols[0].text_input(
-                "Pin hole size", value=draft.pin_hole_size or ""
-            )
-            fibre = cols[1].text_input(
-                "Collection fibre diameter (mm)",
-                value=draft.collection_fibre_diameter_mm or "",
-            )
-            cols = st.columns(2)
-            max_power = cols[0].number_input(
-                "Max laser power (mW)",
-                value=float(draft.max_laser_power_mw or 0.0),
-                step=1.0,
-            )
-            spectral_range = cols[1].text_input(
-                "Spectral range / scanning mode", value=draft.spectral_range or ""
-            )
-            profile_notes = st.text_area("Notes", value=draft.notes or "", height=68)
+        device_type = cols[1].text_input("Device type", value=draft.device_type or "")
 
         submitted = st.form_submit_button(
-            "Create profile" if creating else "Save changes",
+            "Create instrument" if creating else "Save changes",
             type="primary",
             icon=":material/save:",
         )
@@ -102,25 +66,97 @@ def edit_profile(profile: InstrumentProfile | None):
         draft.vendor = vendor.strip() or None
         draft.model = model.strip() or None
         draft.serial = serial.strip() or None
-        draft.laser_wl_nm = float(laser) if laser else None
         draft.device_type = device_type.strip() or None
-        draft.numerical_aperture = numerical_aperture.strip() or None
-        draft.grating = grating.strip() or None
-        draft.slit = slit.strip() or None
-        draft.pin_hole_size = pin_hole_size.strip() or None
-        draft.collection_fibre_diameter_mm = fibre.strip() or None
-        draft.max_laser_power_mw = float(max_power) if max_power else None
-        draft.spectral_range = spectral_range.strip() or None
-        draft.notes = profile_notes.strip() or None
+
+        if creating and not draft.optical_paths:
+            # An instrument with no path cannot export or calibrate, so give
+            # it one rather than leaving a dead end.
+            draft.add_optical_path(OpticalPath(op_id="OP1"))
 
         library.upsert(draft)
         state.set_active_profile(draft.id)
         profile_store.save(state)
 
 
+@st.dialog("Optical path", width="large")
+def edit_optical_path(profile: InstrumentProfile, path: OpticalPath | None):
+    creating = path is None
+    draft = path or OpticalPath(op_id=profile.next_op_id())
+
+    st.caption(
+        f"A configuration of **{profile.name}**. Record one per combination of "
+        "wavelength, grating and optics — each calibrates separately."
+    )
+
+    with st.form("optical_path_form"):
+        cols = st.columns(2)
+        op_id = cols[0].text_input(
+            "Identifier",
+            value=draft.op_id,
+            help="How measurements cite this path, e.g. OP1.",
+        )
+        laser = cols[1].number_input(
+            "Laser wavelength (nm)",
+            value=float(draft.laser_wl_nm) if draft.laser_wl_nm else 0.0,
+            step=1.0,
+            format="%.2f",
+            help="Needed to export NeXus and to derive a calibration.",
+        )
+
+        cols = st.columns(2)
+        grating = cols[0].text_input("Grating (l/mm)", value=draft.grating or "")
+        slit = cols[1].text_input("Slit size (µm)", value=draft.slit or "")
+        cols = st.columns(2)
+        pin_hole = cols[0].text_input("Pin hole size", value=draft.pin_hole_size or "")
+        optics = cols[1].text_input(
+            "Collection optics", value=draft.collection_optics or ""
+        )
+        cols = st.columns(2)
+        fibre = cols[0].text_input(
+            "Collection fibre diameter (mm)",
+            value=draft.collection_fibre_diameter_mm or "",
+        )
+        max_power = cols[1].number_input(
+            "Max laser power (mW)",
+            value=float(draft.max_laser_power_mw or 0.0),
+            step=1.0,
+        )
+        spectral_range = st.text_input(
+            "Spectral range / scanning mode", value=draft.spectral_range or ""
+        )
+        notes = st.text_area("Notes", value=draft.notes or "", height=68)
+
+        submitted = st.form_submit_button(
+            "Add optical path" if creating else "Save changes",
+            type="primary",
+            icon=":material/save:",
+        )
+
+    if submitted:
+        if not op_id.strip():
+            st.error("An identifier is required.", icon=":material/error:")
+            return
+        draft.op_id = op_id.strip()
+        draft.laser_wl_nm = float(laser) if laser else None
+        draft.grating = grating.strip() or None
+        draft.slit = slit.strip() or None
+        draft.pin_hole_size = pin_hole.strip() or None
+        draft.collection_optics = optics.strip() or None
+        draft.collection_fibre_diameter_mm = fibre.strip() or None
+        draft.max_laser_power_mw = float(max_power) if max_power else None
+        draft.spectral_range = spectral_range.strip() or None
+        draft.notes = notes.strip() or None
+
+        profile.add_optical_path(draft)
+        library.upsert(profile)
+        state.set_active_profile(profile.id)
+        state.set_active_optical_path(draft.id)
+        profile_store.save(state)
+
+
 header = st.container(horizontal=True)
 header.button(
-    "New profile",
+    "New instrument",
     icon=":material/add:",
     type="primary",
     on_click=lambda: edit_profile(None),
@@ -128,51 +164,53 @@ header.button(
 
 if not library.profiles:
     st.info(
-        "No profiles yet. You do not need one to convert a spectrum — a "
-        "profile just adds instrument metadata to the file, and gives "
-        "calibrations somewhere to live.",
+        "No instruments yet. You do not need one to convert a spectrum — an "
+        "instrument just records metadata for the file, and gives optical "
+        "paths and their calibrations somewhere to live.",
         icon=":material/precision_manufacturing:",
     )
-else:
-    for profile in library.profiles:
-        with st.container(border=True):
-            top = st.container(horizontal=True, vertical_alignment="center")
-            top.markdown(f"### {profile.name}")
-            if profile.id == state.active_profile_id:
-                top.badge("Selected", icon=":material/check:", color="green")
-            st.caption(profile.describe())
-            if profile.laser_wl_nm is None:
-                st.caption(
-                    ":orange[No laser wavelength — needed to export NeXus "
-                    "and to derive a calibration.]"
-                )
 
-            if profile.calibrations:
-                for record in profile.calibrations:
-                    active = record.id == profile.active_calibration_id
-                    line = st.container(horizontal=True, vertical_alignment="center")
-                    line.markdown(
-                        f":material/tune: **{record.label}** · "
-                        f"`{record.recipe_id}` · "
-                        f"{record.created:%Y-%m-%d}"
+for profile in library.profiles:
+    with st.container(border=True):
+        top = st.container(horizontal=True, vertical_alignment="center")
+        top.markdown(f"### {profile.name}")
+        if profile.id == state.active_profile_id:
+            top.badge("Selected", icon=":material/check:", color="green")
+        st.caption(profile.describe())
+
+        if not profile.optical_paths:
+            st.caption(
+                ":orange[No optical path recorded — needed to export NeXus "
+                "and to calibrate.]"
+            )
+
+        for path in profile.optical_paths:
+            with st.container(border=True):
+                line = st.container(horizontal=True, vertical_alignment="center")
+                line.markdown(f"**{path.op_id}**")
+                line.caption(path.describe())
+                if path.laser_wl_nm is None:
+                    line.badge("No wavelength", color="orange")
+
+                for record in path.calibrations:
+                    row = st.container(horizontal=True, vertical_alignment="center")
+                    row.markdown(
+                        f":material/tune: {record.label} · "
+                        f"`{record.recipe_id}` · {record.created:%Y-%m-%d}"
                     )
-                    if active:
-                        line.badge("Active", color="blue")
-                    else:
-                        if line.button(
-                            "Use this",
-                            key=f"activate_{profile.id}_{record.id}",
-                        ):
-                            profile.active_calibration_id = record.id
-                            library.upsert(profile)
-                            profile_store.save(state)
-                    if line.button(
+                    if record.id == path.active_calibration_id:
+                        row.badge("Active", color="blue")
+                    elif row.button("Use this", key=f"act_{path.id}_{record.id}"):
+                        path.active_calibration_id = record.id
+                        library.upsert(profile)
+                        profile_store.save(state)
+                    if row.button(
                         "",
                         icon=":material/delete:",
-                        key=f"delcal_{profile.id}_{record.id}",
+                        key=f"delcal_{path.id}_{record.id}",
                         help="Remove this calibration",
                     ):
-                        profile.remove_calibration(record.id)
+                        path.remove_calibration(record.id)
                         library.upsert(profile)
                         profile_store.save(state)
                     if record.skipped_step_labels:
@@ -180,34 +218,60 @@ else:
                             "Steps not applied: "
                             + ", ".join(record.skipped_step_labels)
                         )
-            else:
-                st.caption("No calibration attached yet.")
 
-            actions = st.container(horizontal=True)
-            actions.button(
-                "Edit",
-                icon=":material/edit:",
-                key=f"edit_{profile.id}",
-                on_click=edit_profile,
-                args=(profile,),
-            )
-            if actions.button(
-                "Select",
-                icon=":material/check_circle:",
-                key=f"select_{profile.id}",
-                disabled=profile.id == state.active_profile_id,
-            ):
-                state.set_active_profile(profile.id)
-                st.rerun()
-            if actions.button(
-                "Delete",
-                icon=":material/delete:",
-                key=f"delete_{profile.id}",
-            ):
-                library.remove(profile.id)
-                if state.active_profile_id == profile.id:
-                    state.set_active_profile(None)
-                profile_store.save(state)
+                path_actions = st.container(horizontal=True)
+                path_actions.button(
+                    "Edit path",
+                    icon=":material/edit:",
+                    key=f"editop_{path.id}",
+                    on_click=edit_optical_path,
+                    args=(profile, path),
+                )
+                if path_actions.button(
+                    "Select",
+                    icon=":material/check_circle:",
+                    key=f"selop_{path.id}",
+                    disabled=(
+                        profile.id == state.active_profile_id
+                        and path.id == state.active_optical_path_id
+                    ),
+                ):
+                    state.set_active_profile(profile.id)
+                    state.set_active_optical_path(path.id)
+                    st.rerun()
+                if path_actions.button(
+                    "Delete path",
+                    icon=":material/delete:",
+                    key=f"delop_{path.id}",
+                ):
+                    profile.remove_optical_path(path.id)
+                    library.upsert(profile)
+                    profile_store.save(state)
+
+        actions = st.container(horizontal=True)
+        actions.button(
+            "Add optical path",
+            icon=":material/add:",
+            key=f"addop_{profile.id}",
+            on_click=edit_optical_path,
+            args=(profile, None),
+        )
+        actions.button(
+            "Edit instrument",
+            icon=":material/edit:",
+            key=f"edit_{profile.id}",
+            on_click=edit_profile,
+            args=(profile,),
+        )
+        if actions.button(
+            "Delete instrument",
+            icon=":material/delete:",
+            key=f"delete_{profile.id}",
+        ):
+            library.remove(profile.id)
+            if state.active_profile_id == profile.id:
+                state.set_active_profile(None)
+            profile_store.save(state)
 
 
 st.subheader("Backup")

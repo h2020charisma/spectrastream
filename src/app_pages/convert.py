@@ -13,7 +13,12 @@ round-robin.
 import streamlit as st
 from ramanchada2.io.output.write_csv import write_csv as io_write_csv
 
-from spectrastream.acquisition import BACKGROUND_CHOICES, UNIT_LABELS
+from spectrastream.acquisition import (
+    BACKGROUND_CHOICES,
+    UNIT_LABELS,
+    Acquisition,
+    guess_from_metadata,
+)
 from spectrastream.calibration import CalibrationError, get_engine
 from spectrastream.cwa import CwaExportError, export_x_files, x_calibration_model
 from spectrastream.ingest import IngestError, load_spectrum
@@ -38,6 +43,16 @@ if uploaded is not None:
         except IngestError as err:
             state.target = None
             st.error(str(err), icon=":material/error:")
+        else:
+            # Prefill from whatever the file already told us. These are
+            # suggestions shown in editable fields, not commitments -- a header
+            # can be stale, and the contributor is the one who knows.
+            fields, guessed_wl = guess_from_metadata(state.target.source_metadata)
+            state.acquisition = Acquisition(**fields)
+            state.guessed_fields = set(fields) | (
+                {"laser_wl_nm"} if guessed_wl else set()
+            )
+            state.guessed_laser_wl_nm = guessed_wl
 
 target = state.target
 
@@ -86,6 +101,33 @@ if not profiles:
         "add one on the Instruments page to enrich it."
     )
 
+# Which configuration of that instrument. The wavelength and the calibration
+# both belong to the path, so this choice matters more than the instrument.
+if profile is not None and len(profile.optical_paths) > 1:
+    path_ids = [p.id for p in profile.optical_paths]
+    chosen_path = st.selectbox(
+        "Optical path",
+        options=path_ids,
+        index=(
+            path_ids.index(state.active_optical_path_id)
+            if state.active_optical_path_id in path_ids
+            else 0
+        ),
+        format_func=lambda pid: (
+            f"{profile.optical_path(pid).op_id} · "
+            f"{profile.optical_path(pid).describe()}"
+        ),
+        help="One instrument, several configurations — each calibrates separately.",
+    )
+    state.set_active_optical_path(chosen_path)
+elif profile is not None and not profile.optical_paths:
+    st.caption(
+        f"**{profile.name}** has no optical path recorded yet — add one on the "
+        "Instruments page to carry its wavelength and optics."
+    )
+
+optical_path = state.active_optical_path
+
 
 # --- optional calibration ---------------------------------------------------
 
@@ -94,9 +136,9 @@ calibrated = None
 fitted = None
 apply_calibration = False
 
-if profile is not None and profile.calibrations:
-    labels = {c.id: c.label for c in profile.calibrations}
-    default_id = profile.active_calibration_id or profile.calibrations[-1].id
+if optical_path is not None and optical_path.calibrations:
+    labels = {c.id: c.label for c in optical_path.calibrations}
+    default_id = optical_path.active_calibration_id or optical_path.calibrations[-1].id
     ids = list(labels)
     chosen_id = st.selectbox(
         "Calibration",
@@ -105,12 +147,12 @@ if profile is not None and profile.calibrations:
         format_func=lambda cid: "Do not calibrate" if cid is None else labels[cid],
     )
     if chosen_id is not None:
-        calibration_record = profile.calibration(chosen_id)
+        calibration_record = optical_path.calibration(chosen_id)
         apply_calibration = True
-elif profile is not None:
+elif optical_path is not None:
     st.caption(
-        "This profile has no calibration yet — the file will carry its "
-        "metadata but an uncorrected axis."
+        f"Optical path {optical_path.op_id} has no calibration yet — the file "
+        "will carry its metadata but an uncorrected axis."
     )
 
 if apply_calibration and calibration_record is not None:
@@ -153,6 +195,13 @@ st.caption(
 
 acq = state.acquisition
 
+if state.guessed_fields:
+    st.caption(
+        ":material/auto_awesome: Prefilled from the file's own header: "
+        f"{', '.join(sorted(f.replace('_', ' ') for f in state.guessed_fields))}. "
+        "Check and correct anything that looks wrong — headers go stale."
+    )
+
 core = st.columns(3)
 unit_options = list(UNIT_LABELS)
 acq.units = core[0].selectbox(
@@ -161,17 +210,22 @@ acq.units = core[0].selectbox(
     index=unit_options.index(acq.units) if acq.units in unit_options else 0,
     format_func=lambda u: UNIT_LABELS[u],
 )
-profile_wl = profile.laser_wl_nm if profile else None
+
+# The optical path is authoritative when one is chosen -- the wavelength is a
+# property of the path, not the instrument. Otherwise fall back to what the
+# file claimed, and let the user override.
+path_wl = optical_path.laser_wl_nm if optical_path else None
+prefill_wl = path_wl if path_wl is not None else state.guessed_laser_wl_nm
 laser_wl = core[1].number_input(
     "Laser wavelength (nm)",
-    value=float(profile_wl) if profile_wl else 0.0,
+    value=float(prefill_wl) if prefill_wl else 0.0,
     step=1.0,
-    format="%.1f",
+    format="%.2f",
     help=(
-        "Taken from the instrument profile when one is selected. Set it on the "
-        "profile to avoid retyping it."
+        "Taken from the selected optical path, otherwise read from the file if "
+        "it says. Record it on the optical path to stop retyping it."
     ),
-    disabled=profile_wl is not None,
+    disabled=path_wl is not None,
 )
 acq.sample = (
     core[2].text_input("Sample", value=acq.sample or "", placeholder="e.g. polystyrene")
@@ -181,28 +235,51 @@ acq.sample = (
 with st.expander("More measurement detail (optional)", icon=":material/notes:"):
     row = st.columns(3)
     acq.op_id = (
-        row[0].text_input("Operating procedure ID", value=acq.op_id or "") or None
+        row[0].text_input(
+            "Optical path ID",
+            value=acq.op_id or "",
+            help=(
+                "Which optical path was used. One instrument often has "
+                "several — different grating, objective or slit — and each "
+                "calibrates differently."
+            ),
+        )
+        or None
     )
     acq.integration_time_ms = (
-        row[1].number_input("Integration time (ms)", value=0.0, step=100.0) or None
+        row[1].number_input(
+            "Integration time (ms)",
+            value=float(acq.integration_time_ms or 0.0),
+            step=100.0,
+        )
+        or None
     )
     acq.power_meter_mw = (
-        row[2].number_input("Power at sample (mW)", value=0.0, step=0.1) or None
+        row[2].number_input(
+            "Power at sample (mW)", value=float(acq.power_meter_mw or 0.0), step=0.1
+        )
+        or None
     )
 
     row = st.columns(3)
     acq.laser_power_percent = (
-        row[0].number_input("Laser power (%)", value=0.0, step=1.0) or None
+        row[0].number_input(
+            "Laser power (%)", value=float(acq.laser_power_percent or 0.0), step=1.0
+        )
+        or None
     )
     acq.temperature_c = (
-        row[1].number_input("Temperature (°C)", value=0.0, step=1.0) or None
+        row[1].number_input(
+            "Temperature (°C)", value=float(acq.temperature_c or 0.0), step=1.0
+        )
+        or None
     )
     acq.background = (
         row[2].selectbox("Background", options=[None] + BACKGROUND_CHOICES) or None
     )
 
-effective_wl = profile_wl if profile_wl is not None else (laser_wl or None)
-missing = missing_minimum(profile, effective_wl)
+effective_wl = path_wl if path_wl is not None else (laser_wl or None)
+missing = missing_minimum(optical_path, effective_wl)
 
 
 # --- downloads --------------------------------------------------------------
@@ -223,6 +300,7 @@ else:
         nexus_bytes = spectrum_to_nexus(
             export_spectrum,
             profile=profile,
+            optical_path=optical_path,
             calibration=calibration_record,
             original_filename=target.filename,
             acquisition=acq,

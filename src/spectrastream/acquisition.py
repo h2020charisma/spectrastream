@@ -9,8 +9,8 @@ Everything is optional except the axis units, because units are not metadata
 about the data -- they are what makes the numbers mean anything.
 """
 
-from datetime import date, time
-from typing import Any, Literal
+from datetime import date, datetime, time
+from typing import Any, Literal, Mapping
 
 from pydantic import BaseModel, Field
 
@@ -37,7 +37,9 @@ class Acquisition(BaseModel):
     sample: str | None = None
     #: Units of the x axis as uploaded. Not optional -- see module docstring.
     units: AxisUnits = "cm-1"
-    #: VAMAS "OP ID": which operating procedure / instrument configuration.
+    #: VAMAS "OP ID": which *optical path* was used. One instrument commonly
+    #: has several -- different grating, objective or slit -- and they
+    #: calibrate differently, so the measurement records which one it was.
     op_id: str | None = None
     #: VAMAS "Measurement #".
     measurement: int | None = None
@@ -88,3 +90,91 @@ class Acquisition(BaseModel):
         meta = {k: v for k, v in named.items() if v not in (None, "")}
         meta.update({k: v for k, v in self.extra.items() if v not in (None, "")})
         return meta
+
+
+#: Header keys seen in the wild, mapped to the field they describe. Vendors are
+#: inconsistent and some are misspelled at source ("intigration") -- matching
+#: what files actually contain beats matching what they should contain.
+_GUESSES: dict[str, tuple[str, ...]] = {
+    "laser_wl_nm": (
+        "laser_wavelength",
+        "laser wavelength",
+        "excitation_wavelength",
+        "excitation wavelength",
+        "laser",
+        "excitation",
+    ),
+    "integration_time_ms": (
+        "intigration times(ms)",
+        "integration times(ms)",
+        "integration time",
+        "integration_time",
+        "integ_time",
+        "acquisition_time",
+        "exposure_time",
+    ),
+    "temperature_c": ("temperature", "temp", "temperature_c", "detector_temperature"),
+    "laser_power_percent": ("laser_powerlevel", "laser power level", "laser_power"),
+    "power_meter_mw": ("power_mw", "laser power, mw", "power meter, mw"),
+    "sample": ("sample", "sample_name", "title"),
+}
+
+
+def _lookup(source: Mapping[str, Any], names: tuple[str, ...]) -> Any | None:
+    lowered = {str(k).strip().lower(): v for k, v in source.items()}
+    for name in names:
+        if name in lowered:
+            value = lowered[name]
+            if value not in (None, "") and not (
+                isinstance(value, str) and not value.strip()
+            ):
+                return value
+    return None
+
+
+def _as_float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def guess_from_metadata(
+    source_metadata: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], float | None]:
+    """Read what the file already told us.
+
+    Returns ``(acquisition_fields, laser_wl_nm)``. These are *suggestions*: the
+    caller shows them in editable fields rather than committing them, because a
+    header can be stale or plain wrong and the contributor is the one who knows.
+    """
+    source = dict(source_metadata or {})
+    fields: dict[str, Any] = {}
+    if not source:
+        return fields, None
+
+    laser_wl = _as_float(_lookup(source, _GUESSES["laser_wl_nm"]))
+
+    for field_name in (
+        "integration_time_ms",
+        "temperature_c",
+        "laser_power_percent",
+        "power_meter_mw",
+    ):
+        value = _as_float(_lookup(source, _GUESSES[field_name]))
+        if value is not None:
+            fields[field_name] = value
+
+    sample = _lookup(source, _GUESSES["sample"])
+    if isinstance(sample, str) and sample.strip():
+        fields["sample"] = sample.strip()
+
+    measured = _lookup(source, ("date", "datetime", "acquisition_date"))
+    if isinstance(measured, datetime):
+        fields["measured_on"] = measured.date()
+        fields["measured_at"] = measured.time().replace(second=0, microsecond=0)
+    elif isinstance(measured, date):
+        fields["measured_on"] = measured
+
+    return fields, laser_wl

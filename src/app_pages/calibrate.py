@@ -1,9 +1,13 @@
-"""Derive a calibration and attach it to an instrument profile.
+"""Derive a calibration and attach it to an optical path.
 
-The whole page is generated from the selected recipe: which reference spectra
-to ask for, which steps will run, and which of them can be skipped. Swapping in
-a protocol that needs different materials -- or a different engine entirely --
-changes the YAML, not this file.
+Everything below the path selector is generated from the chosen recipe: which
+reference spectra to ask for, which steps will run, and which can be skipped.
+Swapping in a protocol that needs different materials -- or a different engine
+entirely -- changes the YAML, not this file.
+
+A calibration attaches to an optical path rather than to the instrument,
+because that is the level at which it is valid: change the grating and the
+correction changes; change the wavelength and even the reference lines differ.
 """
 
 import streamlit as st
@@ -29,8 +33,9 @@ profile = state.active_profile
 
 if not state.library.profiles:
     st.info(
-        "Calibration is derived **for an instrument**, so it needs a profile "
-        "to belong to. Create one on the Instruments page — a name is enough.",
+        "A calibration belongs to an **optical path**, so it needs one to "
+        "attach to. Create an instrument on the Instruments page — a name is "
+        "enough to start.",
         icon=":material/precision_manufacturing:",
     )
     st.stop()
@@ -49,19 +54,47 @@ chosen = st.selectbox(
 state.set_active_profile(chosen)
 profile = state.active_profile
 
-if profile.laser_wl_nm is None:
+if not profile.optical_paths:
     st.warning(
-        f"**{profile.name}** has no laser wavelength recorded. Most protocols "
-        "need one to look up reference lines — add it on the Instruments page.",
+        f"**{profile.name}** has no optical path yet. Add one on the "
+        "Instruments page — the wavelength and optics a calibration depends on "
+        "live there, not on the instrument.",
+        icon=":material/warning:",
+    )
+    st.stop()
+
+# A calibration is only valid for one configuration: change the grating and the
+# correction changes, change the wavelength and even the reference lines do.
+path_ids = [p.id for p in profile.optical_paths]
+chosen_path = st.selectbox(
+    "Optical path",
+    options=path_ids,
+    index=(
+        path_ids.index(state.active_optical_path_id)
+        if state.active_optical_path_id in path_ids
+        else 0
+    ),
+    format_func=lambda pid: (
+        f"{profile.optical_path(pid).op_id} · {profile.optical_path(pid).describe()}"
+    ),
+)
+state.set_active_optical_path(chosen_path)
+optical_path = profile.optical_path(chosen_path)
+
+if optical_path.laser_wl_nm is None:
+    st.warning(
+        f"Optical path **{optical_path.op_id}** has no laser wavelength. Most "
+        "protocols need one to look up reference lines — add it on the "
+        "Instruments page.",
         icon=":material/warning:",
     )
 
 # --- which protocol ---------------------------------------------------------
 
-recipes = [r for r in all_recipes() if r.supports_wavelength(profile.laser_wl_nm)]
+recipes = [r for r in all_recipes() if r.supports_wavelength(optical_path.laser_wl_nm)]
 if not recipes:
     st.error(
-        f"No calibration protocol supports {profile.laser_wl_nm:g} nm.",
+        f"No calibration protocol supports {optical_path.laser_wl_nm:g} nm.",
         icon=":material/error:",
     )
     st.stop()
@@ -117,8 +150,8 @@ if st.button(
 ):
     engine = engine_for_recipe(recipe)
     context = CalibrationContext(
-        laser_wl_nm=profile.laser_wl_nm,
-        instrument=profile.instrument_metadata(),
+        laser_wl_nm=optical_path.laser_wl_nm,
+        instrument={**profile.instrument_metadata(), **optical_path.metadata()},
     )
     with st.status("Deriving calibration…", expanded=False) as status:
         try:
@@ -189,13 +222,15 @@ with st.expander("Diagnostics", icon=":material/query_stats:"):
 
 # --- save -------------------------------------------------------------------
 
-st.subheader("Save to instrument")
+st.subheader("Save to optical path")
 with st.form("save_calibration"):
-    default_label = f"{recipe.label} · {len(profile.calibrations) + 1}"
+    default_label = f"{recipe.label} · {len(optical_path.calibrations) + 1}"
     label = st.text_input("Label", value=default_label)
     notes = st.text_area("Notes (optional)", value="", height=80)
     saved = st.form_submit_button(
-        f"Save to {profile.name}", type="primary", icon=":material/save:"
+        f"Save to {profile.name} · {optical_path.op_id}",
+        type="primary",
+        icon=":material/save:",
     )
 
 if saved:
@@ -203,7 +238,7 @@ if saved:
         label=label.strip() or default_label,
         recipe_id=recipe.id,
         engine_id=fitted.engine_id,
-        laser_wl_nm=profile.laser_wl_nm,
+        laser_wl_nm=optical_path.laser_wl_nm,
         sources=[
             SourceFile(slot=sid, filename=loaded.filename, sha256=loaded.sha256)
             for sid, loaded in draft.inputs.items()
@@ -220,7 +255,11 @@ if saved:
         ],
         notes=notes.strip(),
     )
-    profile.add_calibration(record)
+    optical_path.add_calibration(record)
+    profile.add_optical_path(optical_path)
     state.library.upsert(profile)
-    st.toast(f"Saved to {profile.name}", icon=":material/check_circle:")
+    st.toast(
+        f"Saved to {profile.name} · {optical_path.op_id}",
+        icon=":material/check_circle:",
+    )
     profile_store.save(state)

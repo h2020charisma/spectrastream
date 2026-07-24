@@ -21,7 +21,11 @@ from pyambit.nexus_spectra import spe2ambit
 from ramanchada2.spectrum import Spectrum
 
 from spectrastream import __version__
-from spectrastream.profiles import CalibrationRecord, InstrumentProfile
+from spectrastream.profiles import (
+    CalibrationRecord,
+    InstrumentProfile,
+    OpticalPath,
+)
 
 #: uuid prefix for records minted by this app.
 UUID_PREFIX = "SSTR"
@@ -43,7 +47,7 @@ def _clean(value: Any) -> str | None:
 
 
 def missing_minimum(
-    profile: InstrumentProfile | None,
+    optical_path: OpticalPath | None = None,
     laser_wl_nm: float | None = None,
 ) -> list[str]:
     """What still has to be supplied before a record is worth writing.
@@ -52,9 +56,12 @@ def missing_minimum(
     decide whether the numbers are Raman shifts or wavelengths, and without the
     excitation wavelength one cannot convert between them or compare the record
     with anything else. Everything beyond these two genuinely is optional.
+
+    The wavelength comes from the *optical path*, not the instrument: a rig with
+    both a 532 and a 785 line has two paths and two different answers.
     """
-    if laser_wl_nm is None and profile is not None:
-        laser_wl_nm = profile.laser_wl_nm
+    if laser_wl_nm is None and optical_path is not None:
+        laser_wl_nm = optical_path.laser_wl_nm
     missing = []
     if not laser_wl_nm:
         missing.append("laser wavelength")
@@ -63,6 +70,7 @@ def missing_minimum(
 
 def build_metadata(
     profile: InstrumentProfile | None = None,
+    optical_path: OpticalPath | None = None,
     source_metadata: Mapping[str, Any] | None = None,
     calibration: CalibrationRecord | None = None,
     original_filename: str | None = None,
@@ -89,6 +97,10 @@ def build_metadata(
         meta.update(profile.instrument_metadata())
         if profile.name:
             meta["instrument_profile"] = profile.name
+
+    # The optical path is more specific than the instrument, so it wins.
+    if optical_path is not None:
+        meta.update(optical_path.metadata())
 
     # Acquisition detail outranks both: it describes this measurement, not the
     # instrument in general or whatever the file header happened to carry.
@@ -122,6 +134,7 @@ def build_metadata(
 def spectrum_to_nexus(
     spe: Spectrum,
     profile: InstrumentProfile | None = None,
+    optical_path: OpticalPath | None = None,
     calibration: CalibrationRecord | None = None,
     sample: str | None = None,
     original_filename: str | None = None,
@@ -145,7 +158,7 @@ def spectrum_to_nexus(
     if units is None:
         units = getattr(acquisition, "units", None) or "cm-1"
     if laser_wl_nm is None:
-        laser_wl_nm = profile.laser_wl_nm if profile else None
+        laser_wl_nm = optical_path.laser_wl_nm if optical_path else None
 
     sample_name = (
         _clean(sample) or _clean(getattr(acquisition, "sample", None)) or DEFAULT_SAMPLE
@@ -167,6 +180,7 @@ def spectrum_to_nexus(
 
     meta = build_metadata(
         profile=profile,
+        optical_path=optical_path,
         source_metadata=source_metadata,
         calibration=calibration,
         original_filename=original_filename,
