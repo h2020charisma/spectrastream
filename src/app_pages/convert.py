@@ -90,19 +90,20 @@ else:
             )
             state.guessed_laser_wl_nm = guessed_wl
 
-st.caption(
-    "Any format ramanchada2 reads becomes a NeXus file. A calibration and an "
-    "instrument profile make the record richer, but neither is required — "
-    "converting alone is the point."
+st.info(
+    "**Drop in a spectrum and you are done.** Any format ramanchada2 reads "
+    "becomes a NeXus file. Everything below the download is optional — a "
+    "profile, a calibration, preprocessing — and each one only makes the "
+    "record richer.",
+    icon=":material/bolt:",
 )
 
 target = state.target
 
 if target is None:
-    st.info(
-        "Upload a spectrum to begin. All you need beyond the file itself is "
-        "its x axis units and the laser wavelength.",
-        icon=":material/upload:",
+    st.caption(
+        "Waiting for a file. Beyond it you need only the x axis units and the "
+        "laser wavelength."
     )
     st.stop()
 
@@ -465,7 +466,10 @@ buttons.download_button(
 )
 
 if calibrated is None:
-    st.caption("Exported without calibration — still a valid, shareable NeXus record.")
+    st.success(
+        "Ready — a valid, shareable NeXus record, with no calibration needed.",
+        icon=":material/check_circle:",
+    )
 else:
     st.caption(f"Exported with calibration “{calibration_record.label}” applied.")
 
