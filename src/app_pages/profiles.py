@@ -12,6 +12,8 @@ file would defeat the point of the floor.
 import streamlit as st
 
 from spectrastream.profiles import (
+    MAX_INSTRUMENTS,
+    MAX_OPTICAL_PATHS,
     InstrumentProfile,
     OpticalPath,
     export_bytes,
@@ -65,6 +67,13 @@ def edit_profile(profile: InstrumentProfile | None):
     if submitted:
         if not name.strip():
             st.error("A name is required.", icon=":material/error:")
+            return
+        if creating and state.library.at_instrument_capacity():
+            st.error(
+                f"Local storage holds at most {MAX_INSTRUMENTS} instruments — "
+                "export or remove one first.",
+                icon=":material/error:",
+            )
             return
         draft.name = name.strip()
         draft.vendor = vendor.strip() or None
@@ -140,6 +149,13 @@ def edit_optical_path(profile: InstrumentProfile, path: OpticalPath | None):
         if not op_id.strip():
             st.error("An identifier is required.", icon=":material/error:")
             return
+        if creating and profile.at_path_capacity():
+            st.error(
+                f"An instrument holds at most {MAX_OPTICAL_PATHS} optical paths "
+                "locally — remove one first.",
+                icon=":material/error:",
+            )
+            return
         draft.op_id = op_id.strip()
         draft.laser_wl_nm = float(laser) if laser else None
         draft.grating = grating.strip() or None
@@ -158,13 +174,21 @@ def edit_optical_path(profile: InstrumentProfile, path: OpticalPath | None):
         profile_store.save(state)
 
 
+at_instrument_cap = state.library.at_instrument_capacity()
 header = st.container(horizontal=True)
 header.button(
     "New instrument",
     icon=":material/add:",
     type="primary",
     on_click=lambda: edit_profile(None),
+    disabled=at_instrument_cap,
 )
+if at_instrument_cap:
+    st.caption(
+        f":material/cloud_upload: {MAX_INSTRUMENTS} instruments is the local "
+        "limit. Export one you no longer need — or, soon, sync to a server to "
+        "keep more."
+    )
 
 if not state.library.profiles:
     st.info(
@@ -259,6 +283,7 @@ for profile in state.library.profiles:
             key=f"addop_{profile.id}",
             on_click=edit_optical_path,
             args=(profile, None),
+            disabled=profile.at_path_capacity(),
         )
         actions.button(
             "Edit instrument",
@@ -276,6 +301,12 @@ for profile in state.library.profiles:
             if state.active_profile_id == profile.id:
                 state.set_active_profile(None)
             profile_store.save(state)
+
+        if profile.at_path_capacity():
+            st.caption(
+                f":material/info: {MAX_OPTICAL_PATHS} optical paths is the local "
+                "maximum for one instrument."
+            )
 
 
 st.subheader("Backup")

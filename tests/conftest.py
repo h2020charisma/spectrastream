@@ -37,6 +37,32 @@ def target_spectrum():
 
 
 @pytest.fixture(scope="session")
+def fitted_ne_si(neon_spectrum, silicon_spectrum):
+    """A real Neon+Silicon calibration, derived once via the rc2 engine.
+
+    Shared by the verification and resolution tests so the (slow) fit runs a
+    single time. Built through the engine, not the factory, so it is exactly
+    what the app produces and saves.
+    """
+    from spectrastream.calibration import (
+        CalibrationContext,
+        engine_for_recipe,
+        get_recipe,
+    )
+
+    recipe = get_recipe("rc2.ne_si")
+    engine = engine_for_recipe(recipe)
+    ctx = CalibrationContext(
+        laser_wl_nm=532, input_units={"neon": "cm-1", "si": "cm-1"}
+    )
+    return engine.fit(
+        recipe,
+        {"neon": neon_spectrum.spectrum, "si": silicon_spectrum},
+        ctx,
+    )
+
+
+@pytest.fixture(scope="session")
 def silicon_spectrum():
     """A real silicon wafer measurement, 532 nm, from the CHARISMA round robin.
 

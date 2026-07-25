@@ -47,6 +47,11 @@ pages = [
         icon=":material/tune:",
     ),
     st.Page(
+        "app_pages/verify.py",
+        title="Verify",
+        icon=":material/fact_check:",
+    ),
+    st.Page(
         "app_pages/profiles.py",
         title="Instruments",
         icon=":material/precision_manufacturing:",

@@ -22,7 +22,14 @@ from .registry import (
     recipes_for_wavelength,
     reset_cache,
 )
+from .resolution import ResolutionResult, resolution_for
 from .spec import RecipeSpec, SpectrumSlot, StepSpec
+from .verify import (
+    MATERIAL_LABELS,
+    REFERENCE_MATERIALS,
+    VerifyResult,
+    verify_against_reference,
+)
 
 __all__ = [
     "CalibrationContext",
@@ -30,15 +37,21 @@ __all__ = [
     "CalibrationError",
     "Diagnostic",
     "FittedCalibration",
+    "MATERIAL_LABELS",
+    "REFERENCE_MATERIALS",
     "RecipeError",
     "RecipeSpec",
+    "ResolutionResult",
     "SpectrumSlot",
     "StepOutcome",
     "StepSpec",
+    "VerifyResult",
     "all_recipes",
     "engine_for_recipe",
     "get_engine",
     "get_recipe",
     "recipes_for_wavelength",
+    "resolution_for",
     "reset_cache",
+    "verify_against_reference",
 ]

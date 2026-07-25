@@ -131,6 +131,25 @@ def peak_markers(frame: pd.DataFrame, x_title: str = X_TITLE) -> alt.Chart:
     )
 
 
+def reference_rules(positions, x_title: str = X_TITLE) -> alt.Chart:
+    """Dashed vertical rules at certified reference positions.
+
+    Marks where a material's peaks *should* sit, so a calibrated spectrum can be
+    read against the certified lines rather than described only in a table.
+    """
+    frame = pd.DataFrame({"position": [float(p) for p in positions]})
+    return (
+        alt.Chart(frame)
+        .mark_rule(strokeDash=[4, 3], strokeWidth=1, color="#8a8a8a", opacity=0.8)
+        .encode(
+            x=alt.X("position:Q"),
+            tooltip=[
+                alt.Tooltip("position:Q", title=f"Reference {x_title}", format=".2f")
+            ],
+        )
+    )
+
+
 def show_spectrum(
     series: dict[str, tuple[np.ndarray, np.ndarray]],
     x_title: str = X_TITLE,
@@ -138,10 +157,13 @@ def show_spectrum(
     height: int = 320,
     caption: str | None = None,
     peaks: pd.DataFrame | None = None,
+    reference_lines: list[float] | None = None,
 ) -> None:
     if not series:
         return
     chart = spectrum_chart(series, x_title, y_title, height)
+    if reference_lines is not None and len(reference_lines):
+        chart = chart + reference_rules(reference_lines, x_title)
     if peaks is not None and not peaks.empty and "position" in peaks:
         chart = chart + peak_markers(peaks, x_title)
     st.altair_chart(chart, width="stretch")
@@ -161,6 +183,7 @@ def show_twin(
     x_title: str = X_TITLE,
     height: int = 280,
     caption: str | None = None,
+    reference_lines: list[float] | None = None,
 ) -> None:
     """Two traces on one x axis with independent y axes.
 
@@ -197,13 +220,14 @@ def show_twin(
             )
         )
 
+    layers = [
+        _one(left_label, lx, ly, colors[0], "left"),
+        _one(right_label, rx, ry, colors[1], "right"),
+    ]
+    if reference_lines is not None and len(reference_lines):
+        layers.append(reference_rules(reference_lines, x_title))
     chart = (
-        alt.layer(
-            _one(left_label, lx, ly, colors[0], "left"),
-            _one(right_label, rx, ry, colors[1], "right"),
-        )
-        .resolve_scale(y="independent")
-        .properties(height=height)
+        alt.layer(*layers).resolve_scale(y="independent").properties(height=height)
     )
 
     st.altair_chart(chart, width="stretch")

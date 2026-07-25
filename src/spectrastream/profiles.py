@@ -28,6 +28,15 @@ from pydantic import BaseModel, Field
 
 SCHEMA_VERSION = 2
 
+#: Soft caps on what the browser holds. Local storage (~5 MB) is a convenience,
+#: not an archive: capping the interactive "add" flows keeps it small and is the
+#: nudge toward server sync (future functionality). Only *new* additions are
+#: capped -- importing a bundle or editing an existing entry is never blocked,
+#: so nobody loses data -- and calibrations per path are left uncapped. Raise or
+#: drop these once a server-backed store lands.
+MAX_INSTRUMENTS = 3
+MAX_OPTICAL_PATHS = 3
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -199,6 +208,13 @@ class InstrumentProfile(BaseModel):
                 return path
         return None
 
+    def at_path_capacity(self) -> bool:
+        """True when this instrument already holds the local maximum of paths.
+
+        Gates the *add* action only; replacing an existing path is always fine.
+        """
+        return len(self.optical_paths) >= MAX_OPTICAL_PATHS
+
     def add_optical_path(self, path: OpticalPath) -> None:
         self.optical_paths = [p for p in self.optical_paths if p.id != path.id]
         self.optical_paths.append(path)
@@ -244,6 +260,14 @@ class ProfileLibrary(BaseModel):
 
     schema_version: int = SCHEMA_VERSION
     profiles: list[InstrumentProfile] = Field(default_factory=list)
+
+    def at_instrument_capacity(self) -> bool:
+        """True when the library already holds the local maximum of instruments.
+
+        Gates the *add* action only; ``upsert`` of an existing profile, and
+        importing a bundle, are never blocked.
+        """
+        return len(self.profiles) >= MAX_INSTRUMENTS
 
     def get(self, profile_id: str) -> InstrumentProfile | None:
         for profile in self.profiles:
