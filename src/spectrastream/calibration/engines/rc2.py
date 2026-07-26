@@ -237,18 +237,39 @@ def _curve_figure(calmodel: CalibrationModel):
 
 
 def _y_figure(component, spe, certificate):
-    """The intensity-calibration component's own plot.
+    """Measured reference, its analytic fit, and the certificate.
 
-    YCalibrationComponent plots its certificate; drawn beside the measured
-    reference it shows the response being corrected for, which is the whole
-    content of the step.
+    The measured reference is fitted with the certificate's own functional form
+    (a polynomial of the certificate's order, or its log-Gaussian), which
+    denoises it without smoothing. Showing the raw measurement, the fit through
+    it, and the certificate it is compared against is the whole content of the
+    step. All three are normalised to their own maximum so they are comparable
+    -- the correction is scale-free.
     """
     import matplotlib.pyplot as plt
 
     try:
         fig, ax = plt.subplots(figsize=(7, 3))
-        spe.plot(ax=ax, label="measured reference")
-        component.plot(ax=ax.twinx(), label=f"certificate {certificate.id}")
+
+        def _norm(y):
+            y = np.asarray(y, dtype=float)
+            m = np.nanmax(np.abs(y))
+            return y / m if m else y
+
+        lo, hi = certificate.raman_shift or (float(min(spe.x)), float(max(spe.x)))
+        grid = np.linspace(float(lo), float(hi), 400)
+        ax.plot(spe.x, _norm(spe.y), lw=0.8, alpha=0.45, label="measured (raw)")
+        ax.plot(grid, _norm(component.model(grid)), lw=2.0, label="fitted reference")
+        ax.plot(
+            grid,
+            _norm(certificate.Y(grid)),
+            "--",
+            lw=1.5,
+            label=f"certificate {certificate.id}",
+        )
+        ax.set_xlabel("Raman shift / cm⁻¹")
+        ax.set_ylabel("Response (normalised)")
+        ax.legend(fontsize=8)
         ax.grid(alpha=0.3)
         fig.tight_layout()
         return fig
