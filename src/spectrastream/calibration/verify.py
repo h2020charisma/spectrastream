@@ -19,7 +19,10 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 import ramanchada2.misc.constants as rc2const
-from ramanchada2.protocols.calibration.xcalibration import match_peaks4analysis
+from ramanchada2.protocols.calibration.xcalibration import (
+    fit_peaks,
+    match_peaks4analysis,
+)
 from ramanchada2.spectrum import Spectrum
 
 from .engines.base import CalibrationError, FittedCalibration
@@ -183,9 +186,143 @@ def verify_against_reference(
     )
 
 
+def has_relative_intensities(ref: dict[float, float]) -> bool:
+    """True when a reference has *varying* certified intensities to compare.
+
+    Silicon (one band) and calcite (all listed as 1.0) carry no relative
+    intensities; polystyrene (ASTM E1840) does.
+    """
+    return len({round(float(v), 6) for v in ref.values()}) > 1
+
+
+def _fit_intensities(
+    spe: Spectrum, ref: dict[float, float], profile: str, find_kw, fit_peaks_kw,
+    tolerance: float,
+) -> dict[float, float]:
+    """``{reference_position: measured amplitude}`` for the reference lines that
+    have a fitted peak within ``tolerance``."""
+    _, pos_amp = fit_peaks(
+        spe, dict(find_kw or {}), dict(fit_peaks_kw or {}),
+        profile=profile, should_fit=True,
+    )
+    if not pos_amp:
+        return {}
+    positions = np.array(list(pos_amp.keys()), dtype=float)
+    amps = np.array(list(pos_amp.values()), dtype=float)
+    out: dict[float, float] = {}
+    for rpos in ref:
+        i = int(np.argmin(np.abs(positions - rpos)))
+        if abs(positions[i] - rpos) <= tolerance:
+            out[float(rpos)] = float(abs(amps[i]))
+    return out
+
+
+def _normalize_to_100(d: dict[float, float]) -> dict[float, float]:
+    top = max(d.values()) if d else 0.0
+    return {k: (100.0 * v / top if top else 0.0) for k, v in d.items()}
+
+
+@dataclass
+class IntensityResult:
+    """Measured relative peak intensities vs the certified table, before/after."""
+
+    material: str
+    table: pd.DataFrame  # position, reference, as_measured, calibrated, dev_*
+    mean_before: float | None
+    mean_after: float | None
+    n_matched: int
+    intensity_corrected: bool
+
+    @property
+    def improved(self) -> bool | None:
+        if self.mean_before is None or self.mean_after is None:
+            return None
+        return self.mean_after <= self.mean_before
+
+
+def verify_relative_intensity(
+    fitted: FittedCalibration,
+    spe: Spectrum,
+    *,
+    material: str = "PST",
+    spe_units: str = "cm-1",
+    profile: str = "Gaussian",
+    ref: dict[float, float] | None = None,
+    find_kw: dict | None = None,
+    fit_peaks_kw: dict | None = None,
+    preprocess: bool = True,
+    tolerance: float = ARTIFACT_TOLERANCE_CM1,
+) -> IntensityResult:
+    """Compare a material's *relative peak intensities* to its certified table,
+    before and after calibration.
+
+    This is the intensity counterpart of :func:`verify_against_reference`: peaks
+    are fitted on the as-measured and calibrated spectra, matched to the
+    reference lines, and each stage's amplitudes normalised to 100 at the
+    strongest line, then compared with the certified relative intensities
+    (ASTM E1840 for polystyrene). It is meaningful when a *y*-calibration was
+    applied -- an x-only calibration barely moves relative intensities.
+    """
+    if ref is None:
+        ref = REFERENCE_MATERIALS.get(material)
+    if not ref:
+        raise CalibrationError(
+            f"No built-in reference lines for {material!r}. Supply an explicit list."
+        )
+    if not has_relative_intensities(ref):
+        raise CalibrationError(
+            "This reference has no relative intensities to compare against."
+        )
+
+    prepared = _prepare(spe, material, ref) if preprocess else spe
+    calibrated = fitted.apply(prepared, spe_units=spe_units)
+
+    before = _normalize_to_100(
+        _fit_intensities(prepared, ref, profile, find_kw, fit_peaks_kw, tolerance)
+    )
+    after = _normalize_to_100(
+        _fit_intensities(calibrated, ref, profile, find_kw, fit_peaks_kw, tolerance)
+    )
+    ref_norm = _normalize_to_100({float(k): float(v) for k, v in ref.items()})
+
+    rows = []
+    for pos in sorted(ref):
+        r = ref_norm[float(pos)]
+        b = before.get(float(pos))
+        a = after.get(float(pos))
+        rows.append(
+            {
+                "position_cm-1": float(pos),
+                "reference": r,
+                "as_measured": b,
+                "calibrated": a,
+                "dev_before": None if b is None else abs(b - r),
+                "dev_after": None if a is None else abs(a - r),
+            }
+        )
+    table = pd.DataFrame(rows)
+
+    def _mean(col: str) -> float | None:
+        vals = table[col].dropna()
+        return float(vals.mean()) if len(vals) else None
+
+    corrections = getattr(fitted, "corrections", lambda: "")()
+    return IntensityResult(
+        material=material,
+        table=table,
+        mean_before=_mean("dev_before"),
+        mean_after=_mean("dev_after"),
+        n_matched=int(table["calibrated"].notna().sum()),
+        intensity_corrected="intensity" in (corrections or ""),
+    )
+
+
 __all__ = [
     "REFERENCE_MATERIALS",
     "MATERIAL_LABELS",
     "VerifyResult",
+    "IntensityResult",
+    "has_relative_intensities",
     "verify_against_reference",
+    "verify_relative_intensity",
 ]

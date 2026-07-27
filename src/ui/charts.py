@@ -233,3 +233,66 @@ def show_twin(
     st.altair_chart(chart, width="stretch")
     if caption:
         st.caption(caption)
+
+
+#: Fixed order for the intensity-comparison bars, so each source keeps its hue.
+_INTENSITY_LABELS = {
+    "reference": "ASTM reference",
+    "as_measured": "As measured",
+    "calibrated": "Calibrated",
+}
+
+
+def show_intensity_bars(
+    table: pd.DataFrame, height: int = 320, caption: str | None = None
+) -> None:
+    """Grouped bars per peak: certified vs as-measured vs calibrated intensity.
+
+    Reads a table with ``position_cm-1`` and ``reference``/``as_measured``/
+    ``calibrated`` columns (each normalised to 100 at the strongest line), the
+    shape of Erlon's relative-intensity comparison.
+    """
+    order = list(_INTENSITY_LABELS.values())
+    long = (
+        table.melt(
+            id_vars=["position_cm-1"],
+            value_vars=list(_INTENSITY_LABELS),
+            var_name="series",
+            value_name="intensity",
+        )
+        .dropna(subset=["intensity"])
+        .assign(series=lambda d: d["series"].map(_INTENSITY_LABELS))
+    )
+    if long.empty:
+        return
+    colors = series_colors(order)
+    chart = (
+        alt.Chart(long)
+        .mark_bar()
+        .encode(
+            x=alt.X(
+                "position_cm-1:O",
+                title=X_TITLE,
+                sort=None,
+                axis=alt.Axis(format=".0f", labelAngle=0),
+            ),
+            xOffset=alt.XOffset("series:N", sort=order),
+            y=alt.Y("intensity:Q", title="Relative intensity (max = 100)"),
+            color=alt.Color(
+                "series:N",
+                title=None,
+                sort=order,
+                scale=alt.Scale(domain=order, range=colors),
+                legend=alt.Legend(orient="top"),
+            ),
+            tooltip=[
+                alt.Tooltip("position_cm-1:Q", title=X_TITLE, format=".1f"),
+                alt.Tooltip("series:N", title="Source"),
+                alt.Tooltip("intensity:Q", title="Rel. intensity", format=".1f"),
+            ],
+        )
+        .properties(height=height)
+    )
+    st.altair_chart(chart, width="stretch")
+    if caption:
+        st.caption(caption)

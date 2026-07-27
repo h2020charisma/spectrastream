@@ -27,8 +27,11 @@ from .spec import RecipeSpec, SpectrumSlot, StepSpec
 from .verify import (
     MATERIAL_LABELS,
     REFERENCE_MATERIALS,
+    IntensityResult,
     VerifyResult,
+    has_relative_intensities,
     verify_against_reference,
+    verify_relative_intensity,
 )
 
 __all__ = [
@@ -37,6 +40,7 @@ __all__ = [
     "CalibrationError",
     "Diagnostic",
     "FittedCalibration",
+    "IntensityResult",
     "MATERIAL_LABELS",
     "REFERENCE_MATERIALS",
     "RecipeError",
@@ -50,8 +54,10 @@ __all__ = [
     "engine_for_recipe",
     "get_engine",
     "get_recipe",
+    "has_relative_intensities",
     "recipes_for_wavelength",
     "resolution_for",
     "reset_cache",
     "verify_against_reference",
+    "verify_relative_intensity",
 ]

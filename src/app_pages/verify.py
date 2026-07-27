@@ -20,11 +20,13 @@ from spectrastream.calibration import (
     REFERENCE_MATERIALS,
     CalibrationError,
     get_engine,
+    has_relative_intensities,
     resolution_for,
     verify_against_reference,
+    verify_relative_intensity,
 )
 from spectrastream.preprocess import PreprocessStep
-from ui.charts import show_spectrum, show_twin, x_title
+from ui.charts import show_intensity_bars, show_spectrum, show_twin, x_title
 from ui.inputs import reference_input
 from ui.state import get_state
 
@@ -319,6 +321,30 @@ if st.button(
             result = None
             status.update(label="Could not verify", state="error")
             st.error(str(err), icon=":material/error:")
+
+        # Relative-intensity verification, when the reference carries varying
+        # certified intensities (polystyrene does; silicon/calcite do not).
+        intensity = None
+        _iref = (
+            custom_ref
+            if material == "custom"
+            else REFERENCE_MATERIALS.get(material)
+        )
+        if _iref and has_relative_intensities(_iref):
+            try:
+                intensity = verify_relative_intensity(
+                    fitted,
+                    verify_spe,
+                    material=material,
+                    spe_units=verify_units,
+                    profile=(verify_profile or "Gaussian"),
+                    ref=custom_ref,
+                    find_kw=verify_find_kw,
+                    preprocess=False,
+                )
+            except CalibrationError:
+                intensity = None
+        st.session_state["intensity_result"] = (material, intensity)
     if result is not None:
         st.session_state["verify_result"] = (material, result)
 
@@ -392,6 +418,55 @@ if result is not None and verify_spe is not None:
         "Spectra as measured + calibrated (CSV)",
         data=spectra_df.to_csv(index=False),
         file_name=f"{material}_spectra.csv",
+        mime="text/csv",
+        icon=":material/download:",
+    )
+
+
+# --- relative intensity -----------------------------------------------------
+
+istored = st.session_state.get("intensity_result")
+intensity = istored[1] if istored and istored[0] == material else None
+if intensity is not None and verify_spe is not None:
+    st.subheader("Relative intensity")
+    if not intensity.intensity_corrected:
+        st.caption(
+            "This calibration has no intensity (y) correction, so the measured "
+            "relative intensities are shown against the reference but should not "
+            "be expected to move."
+        )
+    cols = st.columns(3)
+    ib, ia = intensity.mean_before, intensity.mean_after
+    idelta = f"{ia - ib:+.1f}" if (ib is not None and ia is not None) else None
+    cols[0].metric("Mean |ΔI| before", f"{ib:.1f}" if ib is not None else "—")
+    cols[1].metric(
+        "Mean |ΔI| after",
+        f"{ia:.1f}" if ia is not None else "—",
+        delta=idelta,
+        delta_color="inverse",
+    )
+    cols[2].metric("Peaks matched", intensity.n_matched)
+
+    if intensity.intensity_corrected and intensity.improved is True:
+        st.success(
+            "The intensity calibration brought the relative intensities closer "
+            "to the certified values.",
+            icon=":material/trending_down:",
+        )
+
+    show_intensity_bars(
+        intensity.table,
+        caption=(
+            "Relative peak intensities, each normalised to 100 at the strongest "
+            "line: certified reference vs as-measured vs calibrated."
+        ),
+    )
+    with st.expander("Relative intensity table", icon=":material/table_view:"):
+        st.dataframe(intensity.table, width="stretch", hide_index=True)
+    st.download_button(
+        "Relative intensities (CSV)",
+        data=intensity.table.to_csv(index=False),
+        file_name=f"{material}_relative_intensity.csv",
         mime="text/csv",
         icon=":material/download:",
     )

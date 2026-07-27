@@ -10,10 +10,13 @@ the VAMAS pipeline and this app both rely on.
 import pytest
 
 from spectrastream.calibration import (
+    REFERENCE_MATERIALS,
     CalibrationError,
     engine_for_recipe,
     get_recipe,
+    has_relative_intensities,
     verify_against_reference,
+    verify_relative_intensity,
 )
 
 
@@ -59,4 +62,36 @@ def test_unknown_material_is_rejected(fitted_ne_si, target_spectrum):
     with pytest.raises(CalibrationError):
         verify_against_reference(
             fitted_ne_si, target_spectrum.spectrum, material="unobtainium"
+        )
+
+
+def test_has_relative_intensities():
+    # polystyrene (ASTM E1840) has varying certified intensities...
+    assert has_relative_intensities(REFERENCE_MATERIALS["PST"])
+    # ...calcite's table lists every line as 1.0 (no relative comparison), and
+    # silicon is a single band
+    assert not has_relative_intensities(REFERENCE_MATERIALS["CAL"])
+    assert not has_relative_intensities(REFERENCE_MATERIALS["Si"])
+
+
+def test_relative_intensity_reports_a_table(fitted_ne_si, target_spectrum):
+    result = verify_relative_intensity(
+        fitted_ne_si, target_spectrum.spectrum, material="PST"
+    )
+    assert result.n_matched > 0
+    assert {"position_cm-1", "reference", "as_measured", "calibrated"} <= set(
+        result.table.columns
+    )
+    # every reference line row carries its certified intensity, normalised to
+    # 100 at the strongest line
+    assert result.table["reference"].max() == pytest.approx(100.0)
+    assert result.mean_before is not None
+    # this calibration (rc2.ne_si) has no y-step, so intensity is not corrected
+    assert result.intensity_corrected is False
+
+
+def test_relative_intensity_rejects_a_flat_reference(fitted_ne_si, silicon_spectrum):
+    with pytest.raises(CalibrationError):
+        verify_relative_intensity(
+            fitted_ne_si, silicon_spectrum, material="Si"
         )
