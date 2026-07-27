@@ -14,16 +14,17 @@ Goal: extend the working `x-calib-nopeak-find` demo so an attendee can upload a 
 Milestones:
 
 - **Milestone 0** — ~~Upgrade to the current ramanchada2 API; get the existing app green end-to-end (format load → x-cal → y-cal → apply → download).~~ **Done** — `ramanchada2` is pinned to `>=1.3.1,<2.0.0`.
-- **Milestone 1** — NeXus export beside the existing CSV download; any format → NeXus with instrument metadata, calibration optional (the FAIR floor).
-- **Milestone 2** — Calibrated NeXus: embed the calibrated spectrum + axis using the existing classic calibration.
-- **Milestone 3** — FAIR capture + organised storage: consent/license/attribution flow; persist uploads (original + NeXus + manifest) outside the source tree; push records to `spectra.adma.ai`.
-- **Milestone 4** — Harden + deploy to `spectra.adma.ai/stream/`, with an async upload path to de-risk unreliable network conditions during live demos.
+  - **TODO:** upgrade to ramanchada2 1.4.0 (releasing 2026-07-27).
+- **Milestone 1** — ~~NeXus export beside the existing CSV download; any format → NeXus with instrument metadata, calibration optional (the FAIR floor).~~ **Done** — the **Convert** page writes any ramanchada2-supported format to NeXus, with or without instrument metadata, with or without calibration.
+- **Milestone 2** — ~~Calibrated NeXus: embed the calibrated spectrum + axis using the existing classic calibration.~~ **Done** — recipe-driven calibration engines (`rc2.ne_si`, `rc2.si_only`, `rc2.y_srm`) wrap the open ramanchada2 stack; instrument/optical-path profiles carry calibrations for reuse; the **Calibrate** page derives and applies them, and the calibrated axis plus its provenance (recipe, engine, steps) rides in the NeXus metadata. A **Verify** page, not originally scoped, adds an in-app check against CWA 18133 reference values and resolution curves.
+- **Milestone 3** — FAIR capture + organised storage: consent/license/attribution flow; persist uploads (original + NeXus + manifest) outside the source tree; push records to `spectra.adma.ai`. **Not started** — uploaded spectra are still never persisted (in-memory for the session only); this is the next milestone.
+- **Milestone 4** — ~~Harden~~ the container image — **done**: CI builds and signs images to `ghcr.io` on every merge to `main`, plus PR preview builds. Deploying to `spectra.adma.ai/stream/` and adding an async upload path to de-risk unreliable network conditions during live demos are still open.
 - **Milestone 5** — Buffer: polish + dry-run on real spectra before release.
 
 ## Beyond the alpha
 
 - **Move off Streamlit.** The current app is a real, working demo, but a rewrite (likely FastAPI + React) around a framework-independent `ingest → optional calibrate → write_nexus` core is the preferred direction once the alpha ships. This also makes the UI swappable independent of the calibration engine underneath.
-- **Pluggable calibration engines.** The calibration step is being kept behind a narrow interface (spectrum in, calibrated axis out) so alternative x-calibration implementations can be evaluated and swapped in later without touching ingestion, NeXus export, or FAIR capture.
+- **Pluggable calibration engines.** Live today: the calibration step already runs behind a narrow interface (recipe in, calibrated axis out) implemented in `spectrastream/calibration/`, so alternative x-calibration implementations can be evaluated and swapped in without touching ingestion, NeXus export, or FAIR capture.
 - **Growing the FAIR corpus.** As the upload/consent flow matures, the accumulating `spectra.adma.ai` corpus becomes useful beyond the demo itself (e.g. as data for future calibration research), but that is downstream of getting ingestion + storage right first.
 
 ## Out of scope for now
