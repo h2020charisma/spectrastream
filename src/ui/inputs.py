@@ -118,9 +118,7 @@ def _preprocess_ui(entry: SlotInput, defaults, key: str) -> None:
                 )
 
 
-def _peak_ui(
-    entry: SlotInput, profiles, key: str
-) -> tuple[dict, float, str]:
+def _peak_ui(entry: SlotInput, profiles, key: str) -> tuple[dict, float, str]:
     """Peak-finding controls + a preview, returning (find_kw, coeff, profile)."""
     with st.expander("Peak finding", icon=":material/graphic_eq:"):
         cols = st.columns(3)
@@ -213,9 +211,7 @@ def reference_input(
         with st.expander(
             f"{len(entry.loaded)} acquisitions — exposures", icon=":material/layers:"
         ):
-            st.caption(
-                "Different exposure times are HDR-merged; equal ones averaged."
-            )
+            st.caption("Different exposure times are HDR-merged; equal ones averaged.")
             for i, item in enumerate(entry.loaded):
                 row = st.columns([2, 1])
                 row[0].caption(item.filename)

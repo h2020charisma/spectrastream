@@ -41,9 +41,7 @@ def test_verify_round_trips_through_json(fitted_ne_si, target_spectrum):
     before = verify_against_reference(
         fitted_ne_si, target_spectrum.spectrum, material="PST"
     )
-    after = verify_against_reference(
-        reloaded, target_spectrum.spectrum, material="PST"
-    )
+    after = verify_against_reference(reloaded, target_spectrum.spectrum, material="PST")
     assert after.mean_after == pytest.approx(before.mean_after)
     assert after.n_matched == before.n_matched
 
@@ -92,6 +90,4 @@ def test_relative_intensity_reports_a_table(fitted_ne_si, target_spectrum):
 
 def test_relative_intensity_rejects_a_flat_reference(fitted_ne_si, silicon_spectrum):
     with pytest.raises(CalibrationError):
-        verify_relative_intensity(
-            fitted_ne_si, silicon_spectrum, material="Si"
-        )
+        verify_relative_intensity(fitted_ne_si, silicon_spectrum, material="Si")

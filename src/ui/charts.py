@@ -226,9 +226,7 @@ def show_twin(
     ]
     if reference_lines is not None and len(reference_lines):
         layers.append(reference_rules(reference_lines, x_title))
-    chart = (
-        alt.layer(*layers).resolve_scale(y="independent").properties(height=height)
-    )
+    chart = alt.layer(*layers).resolve_scale(y="independent").properties(height=height)
 
     st.altair_chart(chart, width="stretch")
     if caption:

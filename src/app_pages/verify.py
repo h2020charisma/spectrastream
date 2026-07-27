@@ -116,12 +116,17 @@ if saved:
 
 source = source_options[0]
 if len(source_options) > 1:
-    source = st.segmented_control(
-        "Calibration to check",
-        options=source_options,
-        format_func=lambda s: "Current draft" if s == "draft" else "Saved calibration",
-        default=source_options[0],
-    ) or source_options[0]
+    source = (
+        st.segmented_control(
+            "Calibration to check",
+            options=source_options,
+            format_func=lambda s: (
+                "Current draft" if s == "draft" else "Saved calibration"
+            ),
+            default=source_options[0],
+        )
+        or source_options[0]
+    )
 
 fitted = None
 laser_wl = None
@@ -326,9 +331,7 @@ if st.button(
         # certified intensities (polystyrene does; silicon/calcite do not).
         intensity = None
         _iref = (
-            custom_ref
-            if material == "custom"
-            else REFERENCE_MATERIALS.get(material)
+            custom_ref if material == "custom" else REFERENCE_MATERIALS.get(material)
         )
         if _iref and has_relative_intensities(_iref):
             try:
@@ -355,9 +358,7 @@ if result is not None and verify_spe is not None:
     before = result.mean_before
     after = result.mean_after
     delta = (
-        f"{after - before:+.3f}"
-        if (before is not None and after is not None)
-        else None
+        f"{after - before:+.3f}" if (before is not None and after is not None) else None
     )
     cols[0].metric(
         "Mean |Δ| before",

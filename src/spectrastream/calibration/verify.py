@@ -196,14 +196,21 @@ def has_relative_intensities(ref: dict[float, float]) -> bool:
 
 
 def _fit_intensities(
-    spe: Spectrum, ref: dict[float, float], profile: str, find_kw, fit_peaks_kw,
+    spe: Spectrum,
+    ref: dict[float, float],
+    profile: str,
+    find_kw,
+    fit_peaks_kw,
     tolerance: float,
 ) -> dict[float, float]:
     """``{reference_position: measured amplitude}`` for the reference lines that
     have a fitted peak within ``tolerance``."""
     _, pos_amp = fit_peaks(
-        spe, dict(find_kw or {}), dict(fit_peaks_kw or {}),
-        profile=profile, should_fit=True,
+        spe,
+        dict(find_kw or {}),
+        dict(fit_peaks_kw or {}),
+        profile=profile,
+        should_fit=True,
     )
     if not pos_amp:
         return {}

@@ -24,7 +24,5 @@ def test_verify_page_with_a_draft_fit(fitted_ne_si):
     at.run(timeout=120)
     assert not at.exception
     # got past the "nothing to verify" stop into the real page
-    assert any(
-        "What this calibration does" in s.value for s in at.subheader
-    )
+    assert any("What this calibration does" in s.value for s in at.subheader)
     assert not any("Nothing to verify" in i.value for i in at.info)
