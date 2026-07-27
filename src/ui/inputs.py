@@ -61,9 +61,7 @@ def _load_files(entry: SlotInput, files) -> list[str]:
     entry.peak_trial = None
     for handle, payload in zip(files, payloads, strict=True):
         try:
-            entry.loaded.append(
-                load_spectrum(payload, handle.name, units=entry.units)
-            )
+            entry.loaded.append(load_spectrum(payload, handle.name, units=entry.units))
         except IngestError as err:
             problems.append(str(err))
     entry.exposures = [None] * len(entry.loaded)
