@@ -5,11 +5,18 @@
 - This is a non-package Streamlit application (`tool.uv.package = false`) supporting Python 3.10-3.12; use the root Python 3.12 pin.
 - Install with `uv sync --locked`. Do not run upgrade-oriented uv commands unless dependency changes are intended.
 - Run locally from the repository root with `uv run streamlit run src/streamlit_app.py`.
-- Run tests with `uv run pytest`; coverage with `uv run pytest --cov`; one test with `uv run pytest tests/basic_test.py::test_app`.
-- The four current tests are render smoke tests only. Pytest treats warnings as errors, and CI runs Python 3.10-3.12; add interaction or utility regressions for behavior changes.
+- Run tests with `uv run pytest`; coverage with `uv run pytest --cov`; one test with `uv run pytest tests/test_app_render.py::test_entry_point_renders`.
+- The suite includes render, interaction, and framework-independent utility tests. Pytest treats warnings as errors, and CI runs Python 3.10-3.12; add interaction or utility regressions for behavior changes rather than relying only on render assertions.
 - Run hooks on staged files with `uv run pre-commit run`, explicit files with `uv run pre-commit run --files <paths>`, or the complete tree with `uv run pre-commit run --all-files`; hooks can rewrite files.
 - Ruff handles Python linting, import sorting, and formatting. The complete tree passes every hook, and CI enforces the all-files baseline.
 - Build the deployment image with `docker build -t spectrastream:local .`; it serves `/stream` on port 8501.
+
+## Required Verification
+
+- Focused tests and file-specific hooks are useful while developing, but they do not replace the final checks.
+- Before handing off or committing a code change, run `uv run pytest --cov` and the same quality check as CI: `SKIP=no-commit-to-branch uv run --no-sync pre-commit run --all-files --show-diff-on-failure`.
+- `ruff check --fix`, `ruff format`, and other hooks can modify files. Review those changes, keep the intended fixes, and rerun the all-files command until it exits successfully without modifying anything.
+- Inspect `git diff` and `git status` after the final hook run so hook-generated changes are not left uncommitted or omitted from the handoff.
 
 ## Application Shape
 
