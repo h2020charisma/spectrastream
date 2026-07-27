@@ -63,6 +63,30 @@ def test_unknown_material_is_rejected(fitted_ne_si, target_spectrum):
         )
 
 
+def test_pixel_axis_is_refused(fitted_ne_si, target_spectrum):
+    """Pixel positions have no established conversion to Raman shift, so
+    verification must refuse rather than match them as if cm-1."""
+    with pytest.raises(CalibrationError, match="pixel"):
+        verify_against_reference(
+            fitted_ne_si, target_spectrum.spectrum, material="PST", spe_units="pixel"
+        )
+
+
+def test_an_nm_upload_is_converted_before_matching(fitted_ne_si, target_spectrum):
+    """Before this fix, an nm-axis upload was compared against certified cm-1
+    positions without conversion, so it matched almost nothing."""
+    from ramanchada2.misc.utils.ramanshift_to_wavelength import shift_cm_1_to_abs_nm
+
+    spe = target_spectrum.spectrum
+    laser_wl_nm = fitted_ne_si.laser_wl_nm
+    nm_spe = spe.set_new_xaxis(shift_cm_1_to_abs_nm(spe.x, laser_wl_nm))
+
+    result = verify_against_reference(
+        fitted_ne_si, nm_spe, material="PST", spe_units="nm"
+    )
+    assert result.n_matched > 0
+
+
 def test_has_relative_intensities():
     # polystyrene (ASTM E1840) has varying certified intensities...
     assert has_relative_intensities(REFERENCE_MATERIALS["PST"])

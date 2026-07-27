@@ -14,6 +14,7 @@ from spectrastream.profiles import (
     InstrumentProfile,
     OpticalPath,
     ProfileLibrary,
+    calibrations_stale_after_wavelength_change,
     export_bytes,
     import_bytes,
     merge,
@@ -134,6 +135,36 @@ def test_finding_a_path_across_the_library():
     assert found_profile is profile
     assert found_path is target
     assert library.find_optical_path("nope") == (None, None)
+
+
+def test_wavelength_mismatch_flags_a_disagreement():
+    """A calibration applied to a path recorded at a different wavelength is
+    not merely inaccurate, it is meaningless -- this is the check convert.py
+    uses to refuse it rather than silently applying it."""
+    record = _record()  # laser_wl_nm=532, via the helper's default
+    assert record.wavelength_mismatch(785)
+    assert not record.wavelength_mismatch(532)
+    assert not record.wavelength_mismatch(532.4)  # rounds to the same nm
+
+
+def test_wavelength_mismatch_is_silent_for_unset_wavelengths():
+    """Older records, or a path with no wavelength recorded, are not flagged
+    -- there is nothing to disagree with."""
+    record = CalibrationRecord(
+        label="x",
+        recipe_id="rc2.ne_si",
+        engine_id="rc2",
+        model={"format": "ramanchada2-calmodel", "components": []},
+    )
+    assert not record.wavelength_mismatch(785)
+    assert not record.wavelength_mismatch(None)
+
+
+def test_calibrations_flagged_stale_after_a_wavelength_change():
+    calibrations = [_record()]
+    assert calibrations_stale_after_wavelength_change(532, 785, calibrations)
+    assert not calibrations_stale_after_wavelength_change(532, 532, calibrations)
+    assert not calibrations_stale_after_wavelength_change(532, 785, [])
 
 
 def test_step_labels_split_by_status():

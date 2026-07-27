@@ -15,7 +15,7 @@ from ramanchada2.spectrum import Spectrum
 
 from spectrastream.ingest import IngestError, load_spectrum
 from spectrastream.merge import MergeError, MergeStrategy, combine
-from spectrastream.peaks import DEFAULT_FIND_KW
+from spectrastream.peaks import DEFAULT_FIND_KW, convert_bound
 from spectrastream.peaks import run as run_peaks
 from spectrastream.preprocess import (
     BASELINE_METHODS,
@@ -25,6 +25,7 @@ from spectrastream.preprocess import (
     PreprocessStep,
     apply_steps,
 )
+from spectrastream.upload import files_changed
 from ui.charts import show_spectrum, x_title
 from ui.state import SlotInput
 
@@ -53,15 +54,15 @@ def _store() -> dict[str, SlotInput]:
 
 def _load_files(entry: SlotInput, files) -> list[str]:
     problems: list[str] = []
-    names = [f.name for f in files]
-    if names == [item.filename for item in entry.loaded]:
+    payloads = [f.getvalue() for f in files]
+    if not files_changed(payloads, entry.loaded):
         return problems
     entry.loaded = []
     entry.peak_trial = None
-    for handle in files:
+    for handle, payload in zip(files, payloads, strict=True):
         try:
             entry.loaded.append(
-                load_spectrum(handle.getvalue(), handle.name, units=entry.units)
+                load_spectrum(payload, handle.name, units=entry.units)
             )
         except IngestError as err:
             problems.append(str(err))
@@ -69,9 +70,24 @@ def _load_files(entry: SlotInput, files) -> list[str]:
     return problems
 
 
-def _preprocess_ui(entry: SlotInput, defaults, key: str) -> None:
+def _preprocess_ui(
+    entry: SlotInput, defaults, key: str, laser_wl_nm: float | None = None
+) -> None:
     if not entry.steps:
         entry.steps = [s.model_copy(deep=True) for s in defaults]
+        # Presets author trim bounds in cm-1; convert them to this upload's
+        # own axis so the crop lands on the region it is meant to.
+        if entry.units != "cm-1":
+            for step in entry.steps:
+                if step.op == "trim":
+                    for bound in ("min", "max"):
+                        if bound in step.params:
+                            step.params[bound] = convert_bound(
+                                float(step.params[bound]),
+                                "cm-1",
+                                entry.units,
+                                laser_wl_nm,
+                            )
     if not entry.steps:
         return
     low, high = entry.x_range()
@@ -168,6 +184,7 @@ def reference_input(
     profiles: tuple[str, ...] = ("Gaussian",),
     peak_finding: bool = True,
     units_default: str = "cm-1",
+    laser_wl_nm: float | None = None,
     help: str | None = None,
 ) -> InputResult | None:
     """Upload one or more acquisitions and return the merged, preprocessed
@@ -236,7 +253,7 @@ def reference_input(
         st.error(f"{err}", icon=":material/error:")
         return None
 
-    _preprocess_ui(entry, preprocess, key)
+    _preprocess_ui(entry, preprocess, key, laser_wl_nm)
     try:
         merged, applied = apply_steps(merged, entry.steps)
     except PreprocessError as err:

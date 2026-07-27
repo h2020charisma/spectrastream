@@ -26,6 +26,7 @@ from spectrastream.preprocess import (
     apply_steps,
     destroys_intensity,
 )
+from spectrastream.upload import files_changed
 from ui.charts import show_spectrum, x_title
 from ui.state import CalibrationDraft, SlotInput
 
@@ -48,6 +49,20 @@ TUNABLES = {
         "How the correction between matched peaks is interpolated.",
     ),
 }
+
+
+def _tracked(draft: CalibrationDraft, old: Any, new: Any) -> Any:
+    """Return `new`, clearing a stale fit first if it differs from `old`.
+
+    Centralises "this control changed, so the derived result no longer
+    matches its inputs" so every widget applies it the same way. `old` must
+    be computed with the same default-fallback the widget's own `value=`
+    uses, or a freshly-computed fit would be spuriously cleared on first
+    render whenever the backing dict entry is legitimately absent.
+    """
+    if new != old:
+        draft.clear_result()
+    return new
 
 
 def _finds_peaks(recipe: RecipeSpec, slot_id: str) -> bool:
@@ -108,6 +123,7 @@ def _peak_controls(
         scope = draft.params.setdefault(step.id, {})
         defaults = dict(step.params.get("find_kw") or DEFAULT_FIND_KW)
         current = dict(scope.get("find_kw") or defaults)
+        old_find_kw = dict(current)
 
         cols = st.columns(3)
         current["wlen"] = cols[0].number_input(
@@ -134,16 +150,18 @@ def _peak_controls(
                 "the narrow candidates that form those groups."
             ),
         )
-        scope["prominence_coeff"] = cols[2].number_input(
+        old_prom = float(
+            scope.get("prominence_coeff", step.params.get("prominence_coeff", 3))
+        )
+        new_prom = cols[2].number_input(
             "Prominence × noise",
-            value=float(
-                scope.get("prominence_coeff", step.params.get("prominence_coeff", 3))
-            ),
+            value=old_prom,
             step=0.5,
             min_value=0.5,
             key=f"find_{recipe.id}_{step.id}_prom",
             help="How far above the noise a candidate must stand.",
         )
+        scope["prominence_coeff"] = _tracked(draft, old_prom, new_prom)
         strategies = ["topo", "bgm", "cwt"]
         chosen = str(current.get("strategy", "topo"))
         current["strategy"] = st.selectbox(
@@ -156,18 +174,20 @@ def _peak_controls(
                 "Gaussian mixture, or continuous wavelet transform."
             ),
         )
-        scope["find_kw"] = current
+        scope["find_kw"] = _tracked(draft, old_find_kw, current)
 
         if "should_fit" in step.params:
-            scope["should_fit"] = st.checkbox(
+            old_should_fit = bool(scope.get("should_fit", step.params["should_fit"]))
+            new_should_fit = st.checkbox(
                 "Fit peak shapes",
-                value=bool(scope.get("should_fit", step.params["should_fit"])),
+                value=old_should_fit,
                 key=f"fit_{recipe.id}_{step.id}",
                 help=(
                     "Fit a profile to each candidate for a sub-pixel position "
                     "instead of taking it as found. Slower."
                 ),
             )
+            scope["should_fit"] = _tracked(draft, old_should_fit, new_should_fit)
 
 
 #: Which peak shapes make sense per step. Neon emission lines are Gaussian;
@@ -347,13 +367,13 @@ def _slot_uploader(
         entry.merged = None
         return problems
 
-    names = [f.name for f in files]
-    if names != [item.filename for item in entry.loaded]:
+    payloads = [f.getvalue() for f in files]
+    if files_changed(payloads, entry.loaded):
         entry.loaded = []
-        for handle in files:
+        for handle, payload in zip(files, payloads, strict=True):
             try:
                 entry.loaded.append(
-                    load_spectrum(handle.getvalue(), handle.name, units=entry.units)
+                    load_spectrum(payload, handle.name, units=entry.units)
                 )
             except IngestError as err:
                 problems.append(str(err))
@@ -450,13 +470,14 @@ def _certificate_control(
     for step in steps:
         scope = draft.params.setdefault(step.id, {})
         current = scope.get("certificate", step.params.get("certificate"))
-        scope["certificate"] = st.selectbox(
+        chosen = st.selectbox(
             "Reference material certificate",
             options=available,
             index=available.index(current) if current in available else 0,
             key=f"cert_{recipe.id}_{step.id}",
             help="Which certified material this measured spectrum is.",
         )
+        scope["certificate"] = _tracked(draft, current, chosen)
 
 
 def _exposure_inputs(slot, draft: CalibrationDraft, entry: SlotInput) -> None:
@@ -475,16 +496,18 @@ def _exposure_inputs(slot, draft: CalibrationDraft, entry: SlotInput) -> None:
         for index, item in enumerate(entry.loaded):
             row = st.columns([2, 1])
             row[0].caption(item.filename)
-            entry.exposures[index] = (
+            old = entry.exposures[index]
+            new = (
                 row[1].number_input(
                     "Exposure (ms)",
-                    value=float(entry.exposures[index] or 0.0),
+                    value=float(old or 0.0),
                     step=100.0,
                     key=f"exp_{draft.recipe_id}_{slot.id}_{index}",
                     label_visibility="collapsed" if index else "visible",
                 )
                 or None
             )
+            entry.exposures[index] = _tracked(draft, old, new)
 
 
 def _preprocess_controls(
@@ -518,9 +541,12 @@ def _preprocess_controls(
                 )
         for index, step in enumerate(steps):
             key = f"pp_{draft.recipe_id}_{slot.id}_{step.op}_{index}"
+            old_enabled = step.enabled
             step.enabled = st.checkbox(
                 step.display_label(), value=step.enabled, key=key
             )
+            if step.enabled != old_enabled:
+                draft.clear_result()
             if not step.enabled:
                 continue
             if step.op == "trim":
@@ -533,32 +559,39 @@ def _preprocess_controls(
                         "certificate is only valid here."
                     )
                 cols = st.columns(2)
-                step.params["min"] = cols[0].number_input(
-                    "From", value=float(step.params.get("min", low)), key=f"{key}_min"
+                old_min = step.params.get("min", low)
+                new_min = cols[0].number_input(
+                    "From", value=float(old_min), key=f"{key}_min"
                 )
-                step.params["max"] = cols[1].number_input(
-                    "To", value=float(step.params.get("max", high)), key=f"{key}_max"
+                step.params["min"] = _tracked(draft, old_min, new_min)
+                old_max = step.params.get("max", high)
+                new_max = cols[1].number_input(
+                    "To", value=float(old_max), key=f"{key}_max"
                 )
+                step.params["max"] = _tracked(draft, old_max, new_max)
             elif step.op == "baseline":
                 cols = st.columns(2)
                 methods = list(BASELINE_METHODS)
                 current = str(step.params.get("method", "snip"))
-                step.params["method"] = cols[0].selectbox(
+                chosen_method = cols[0].selectbox(
                     "Method",
                     options=methods,
                     index=methods.index(current) if current in methods else 0,
                     key=f"{key}_method",
                 )
-                step.params["niter"] = cols[1].number_input(
+                step.params["method"] = _tracked(draft, current, chosen_method)
+                old_niter = step.params.get("niter", 30)
+                new_niter = cols[1].number_input(
                     "Iterations",
-                    value=int(step.params.get("niter", 30)),
+                    value=int(old_niter),
                     step=1,
                     key=f"{key}_niter",
                 )
+                step.params["niter"] = _tracked(draft, old_niter, new_niter)
             elif step.op == "normalize":
                 strategies = list(NORMALIZE_STRATEGIES)
                 current = str(step.params.get("strategy", "minmax"))
-                step.params["strategy"] = st.selectbox(
+                chosen_strategy = st.selectbox(
                     "Strategy",
                     options=strategies,
                     index=(strategies.index(current) if current in strategies else 0),
@@ -569,23 +602,29 @@ def _preprocess_controls(
                         "the integral; the L-norms divide by a vector norm."
                     ),
                 )
+                step.params["strategy"] = _tracked(draft, current, chosen_strategy)
             elif step.op == "smooth":
                 cols = st.columns(2)
                 methods = list(SMOOTH_METHODS)
                 current = str(step.params.get("method", "savgol"))
-                step.params["method"] = cols[0].selectbox(
+                chosen_method = cols[0].selectbox(
                     "Method",
                     options=methods,
                     index=methods.index(current) if current in methods else 0,
                     key=f"{key}_smethod",
                 )
+                step.params["method"] = _tracked(draft, current, chosen_method)
                 if step.params["method"] == "savgol":
-                    step.params["window_length"] = cols[1].number_input(
+                    old_window = step.params.get("window_length", 5)
+                    new_window = cols[1].number_input(
                         "Window",
-                        value=int(step.params.get("window_length", 5)),
+                        value=int(old_window),
                         step=2,
                         min_value=3,
                         key=f"{key}_win",
+                    )
+                    step.params["window_length"] = _tracked(
+                        draft, old_window, new_window
                     )
 
 
@@ -681,13 +720,14 @@ def parameter_controls(recipe: RecipeSpec, draft: CalibrationDraft) -> None:
             title, choices, help_text = TUNABLES[name]
             value = scope.get(name, current)
             index = choices.index(value) if value in choices else 0
-            scope[name] = st.selectbox(
+            chosen = st.selectbox(
                 title,
                 options=choices,
                 index=index,
                 key=f"param_{recipe.id}_{step.id}_{name}",
                 help=help_text,
             )
+            scope[name] = _tracked(draft, value, chosen)
 
 
 def certificate_control(

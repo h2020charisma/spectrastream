@@ -123,6 +123,22 @@ def test_a_slot_is_resolved_on_the_run_its_file_arrives(neon_spectrum):
     assert draft.provenance["neon"], "nothing recorded about what was done"
 
 
+def test_tracked_clears_a_stale_fit_only_when_the_value_changed():
+    """The helper every recipe_form control routes through: an unchanged
+    control must not discard a result that still matches its inputs, and a
+    changed one must not leave a stale result saveable."""
+    from ui.recipe_form import _tracked
+    from ui.state import CalibrationDraft
+
+    draft = CalibrationDraft(fitted=object())
+
+    assert _tracked(draft, 3, 3) == 3
+    assert draft.fitted is not None, "an unchanged control cleared a live fit"
+
+    assert _tracked(draft, 3, 5) == 5
+    assert draft.fitted is None, "a changed control left a stale fit in place"
+
+
 def test_normalisation_is_flagged_as_destroying_intensity():
     """Intensity calibration compares counts to a certified response, so
     rescaling the measurement makes the comparison meaningless."""

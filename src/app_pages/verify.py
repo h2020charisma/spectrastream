@@ -156,7 +156,7 @@ else:
     except (CalibrationError, KeyError, ValueError) as err:
         st.error(f"Could not load this calibration: {err}", icon=":material/error:")
         st.stop()
-    laser_wl = getattr(fitted, "laser_wl_nm", None) or record.laser_wl
+    laser_wl = getattr(fitted, "laser_wl_nm", None) or record.laser_wl_nm
     provenance = f"**{profile.name} · {path.op_id} · {record.label}**"
 
 st.caption(f"Checking {provenance}.")
@@ -286,6 +286,7 @@ else:
         preprocess=_verify_pp,
         profiles=_profiles,
         peak_finding=True,
+        laser_wl_nm=laser_wl,
         help="A measurement of the selected material on this instrument.",
     )
     if vin is not None:
@@ -300,7 +301,20 @@ match_method = st.selectbox(
     help="How found peaks are paired with reference lines.",
 )
 
-ready = verify_spe is not None and (material != "custom" or bool(custom_ref))
+if verify_spe is not None and verify_units == "pixel":
+    st.error(
+        "Verification needs a Raman-shift or wavelength axis to crop and "
+        "match against certified positions — detector pixel positions have "
+        "no established conversion to either. Choose the correct axis units "
+        "above.",
+        icon=":material/error:",
+    )
+
+ready = (
+    verify_spe is not None
+    and verify_units != "pixel"
+    and (material != "custom" or bool(custom_ref))
+)
 if st.button(
     "Check calibration",
     type="primary",
@@ -513,6 +527,7 @@ else:
             preprocess=neon_pp,
             profiles=("Gaussian",),
             peak_finding=True,
+            laser_wl_nm=laser_wl,
             help="Several exposures are HDR-merged (stitched), as in derivation.",
         )
         if nin is not None:
@@ -527,6 +542,7 @@ else:
         accept_multiple=True,
         preprocess=(PreprocessStep(op="trim", enabled=False),),
         peak_finding=False,
+        laser_wl_nm=laser_wl,
         help="Adds the ASTM E2529 spectral-resolution curve.",
     )
     calcite_spe = cin.spectrum if cin is not None else None
@@ -585,7 +601,7 @@ else:
         elif res.within_cwa_boundary is False:
             boundary = "no"
         cols[3].metric(
-            "Within CWA boundary",
+            "Within CWA 18133 boundary",
             boundary,
             help="CWA 18133 Table 1: max neon FWHM below 0.8 nm.",
         )

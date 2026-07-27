@@ -26,7 +26,12 @@ from spectrastream.acquisition import (
     guess_from_metadata,
 )
 from spectrastream.calibration import CalibrationError, get_engine
-from spectrastream.cwa import CwaExportError, export_x_files, x_calibration_model
+from spectrastream.cwa import (
+    CwaExportError,
+    cm1_bounds,
+    export_x_files,
+    x_calibration_model,
+)
 from spectrastream.ingest import IngestError, load_spectrum
 from spectrastream.nexus import missing_minimum, nexus_filename, spectrum_to_nexus
 from spectrastream.preprocess import (
@@ -35,6 +40,7 @@ from spectrastream.preprocess import (
     PreprocessStep,
     apply_steps,
 )
+from spectrastream.upload import files_changed
 from ui.charts import show_spectrum, show_twin, x_title
 from ui.state import get_state
 
@@ -70,7 +76,7 @@ if uploaded is None:
 else:
     payload = uploaded.getvalue()
     already = state.target
-    if already is None or already.filename != uploaded.name:
+    if already is None or files_changed([payload], [already]):
         try:
             state.target = load_spectrum(payload, uploaded.name)
         except IngestError as err:
@@ -259,21 +265,44 @@ else:
     )
 
 if apply_calibration and calibration_record is not None:
-    try:
-        engine = get_engine(calibration_record.engine_id)
-        fitted = engine.load(calibration_record.model)
-        # The preprocessed spectrum, not the raw one: otherwise cropping
-        # and baseline removal would be discarded the moment a calibration
-        # was applied, which is worse than not offering them.
-        calibrated = fitted.apply(working_spectrum, spe_units=state.acquisition.units)
-    except (CalibrationError, KeyError, ValueError) as err:
-        calibrated = None
-        calibration_record = None
+    if state.acquisition.units == "pixel":
         st.error(
-            f"Could not apply this calibration: {err}. Exporting the "
-            "uncalibrated spectrum instead.",
-            icon=":material/warning:",
+            "This calibration was derived on a Raman-shift or wavelength "
+            "axis; applying it to a detector-pixel axis has no established "
+            "conversion. Exporting uncalibrated instead.",
+            icon=":material/error:",
         )
+        calibration_record = None
+    elif calibration_record.wavelength_mismatch(
+        optical_path.laser_wl_nm if optical_path else None
+    ):
+        st.error(
+            f"“{calibration_record.label}” was derived at "
+            f"{calibration_record.laser_wl_nm:g} nm, but "
+            f"{optical_path.op_id} is now recorded at "
+            f"{optical_path.laser_wl_nm:g} nm. Exporting uncalibrated "
+            "instead — re-derive a calibration for this wavelength.",
+            icon=":material/error:",
+        )
+        calibration_record = None
+    else:
+        try:
+            engine = get_engine(calibration_record.engine_id)
+            fitted = engine.load(calibration_record.model)
+            # The preprocessed spectrum, not the raw one: otherwise cropping
+            # and baseline removal would be discarded the moment a calibration
+            # was applied, which is worse than not offering them.
+            calibrated = fitted.apply(
+                working_spectrum, spe_units=state.acquisition.units
+            )
+        except (CalibrationError, KeyError, ValueError) as err:
+            calibrated = None
+            calibration_record = None
+            st.error(
+                f"Could not apply this calibration: {err}. Exporting the "
+                "uncalibrated spectrum instead.",
+                icon=":material/warning:",
+            )
 
 
 if fitted is not None and calibration_record is not None:
@@ -466,52 +495,72 @@ buttons.download_button(
 )
 
 if calibrated is None:
-    st.success(
-        "Ready — a valid, shareable NeXus record, with no calibration needed.",
-        icon=":material/check_circle:",
-    )
+    if nexus_bytes is not None:
+        st.success(
+            "Ready — a valid, shareable NeXus record, with no calibration needed.",
+            icon=":material/check_circle:",
+        )
 else:
     st.caption(f"Exported with calibration “{calibration_record.label}” applied.")
+    if nexus_bytes is not None:
+        st.success(
+            "Ready — a valid, shareable NeXus record, with the calibration applied.",
+            icon=":material/check_circle:",
+        )
 
     # The interoperable form of the calibration itself: a curve of points plus
     # metadata that reads without ramanchada2, per CWA 18133:2024 section 8.
     calmodel = x_calibration_model(fitted)
     if calmodel is not None:
-        try:
-            csv_text, json_text = export_x_files(
-                calmodel,
-                spectral_range=target.x_range,
-                metadata={
-                    "instrument": profile.describe() if profile else "",
-                    "profile": profile.name if profile else "",
-                    "recipe": calibration_record.recipe_id,
-                },
+        # The working spectrum's own (post-crop) range, in cm-1 -- not the
+        # raw upload's, and not whatever unit it happens to be in: export_cwa_x
+        # always labels the sampled curve cm-1.
+        bounds = cm1_bounds(working_spectrum, axis_units, effective_wl)
+        if bounds is None:
+            st.info(
+                "The calibration curve file needs a Raman-shift range to "
+                "sample, and this spectrum's axis cannot be converted to "
+                "one (detector pixels, or nm with no excitation "
+                "wavelength) — not offered here.",
+                icon=":material/block:",
             )
-        except CwaExportError:
-            pass
         else:
-            with st.expander(
-                "Calibration file (CWA 18133 §8)", icon=":material/description:"
-            ):
-                st.caption(
-                    "The calibration itself, as a curve of points plus "
-                    "metadata — readable without ramanchada2."
+            try:
+                csv_text, json_text = export_x_files(
+                    calmodel,
+                    spectral_range=bounds,
+                    metadata={
+                        "instrument": profile.describe() if profile else "",
+                        "profile": profile.name if profile else "",
+                        "recipe": calibration_record.recipe_id,
+                    },
                 )
-                cwa = st.container(horizontal=True)
-                cwa.download_button(
-                    "Curve (CSV)",
-                    data=csv_text,
-                    file_name="calibration.csv",
-                    mime="text/csv",
-                    icon=":material/download:",
-                )
-                cwa.download_button(
-                    "Metadata (JSON)",
-                    data=json_text,
-                    file_name="calibration.json",
-                    mime="application/json",
-                    icon=":material/download:",
-                )
+            except CwaExportError:
+                pass
+            else:
+                with st.expander(
+                    "Calibration file (CWA18133:2024 §8)",
+                    icon=":material/description:",
+                ):
+                    st.caption(
+                        "The calibration itself, as a curve of points plus "
+                        "metadata — readable without ramanchada2."
+                    )
+                    cwa = st.container(horizontal=True)
+                    cwa.download_button(
+                        "Curve (CSV)",
+                        data=csv_text,
+                        file_name="calibration.csv",
+                        mime="text/csv",
+                        icon=":material/download:",
+                    )
+                    cwa.download_button(
+                        "Metadata (JSON)",
+                        data=json_text,
+                        file_name="calibration.json",
+                        mime="application/json",
+                        icon=":material/download:",
+                    )
 
 with st.expander("Metadata read from the file", icon=":material/description:"):
     if target.source_metadata:

@@ -83,6 +83,25 @@ class CalibrationRecord(BaseModel):
     def skipped_step_labels(self) -> list[str]:
         return [s.get("label", "") for s in self.steps if s.get("status") != "applied"]
 
+    def wavelength_mismatch(self, path_laser_wl_nm: float | None) -> bool:
+        """True when this calibration's own wavelength disagrees with the
+        optical path's current one.
+
+        False when either is unknown -- older records, or a path with no
+        wavelength recorded, are not flagged.
+        """
+        if self.laser_wl_nm is None or path_laser_wl_nm is None:
+            return False
+        return round(self.laser_wl_nm) != round(path_laser_wl_nm)
+
+
+def calibrations_stale_after_wavelength_change(
+    old_wl: float | None, new_wl: float | None, calibrations: list[CalibrationRecord]
+) -> bool:
+    """True when an edited path's calibrations were derived at a different
+    wavelength than the one just saved."""
+    return bool(calibrations) and old_wl != new_wl
+
 
 class OpticalPath(BaseModel):
     """One configuration of an instrument, and its calibrations.

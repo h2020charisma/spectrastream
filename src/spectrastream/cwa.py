@@ -15,10 +15,30 @@ from typing import Any, Mapping
 
 from ramanchada2.protocols.calibration.serialization import export_cwa_x
 from ramanchada2.protocols.calibration.xcalibration import XCalibrationComponent
+from ramanchada2.spectrum import Spectrum
+
+from spectrastream.peaks import to_axis
 
 
 class CwaExportError(RuntimeError):
     """The fitted calibration cannot be expressed as a CWA §8 file."""
+
+
+def cm1_bounds(
+    spe: Spectrum, spe_units: str, laser_wl_nm: float | None
+) -> tuple[float, float] | None:
+    """``spe``'s x-range in cm-1, or ``None`` when that cannot be produced.
+
+    Pixel positions have no established conversion to Raman shift. An nm
+    axis needs the excitation wavelength to convert; without it there is
+    nothing to compute a cm-1 range from.
+    """
+    if spe_units == "pixel":
+        return None
+    if spe_units != "cm-1" and laser_wl_nm is None:
+        return None
+    converted = to_axis(spe, spe_units, "cm-1", laser_wl_nm)
+    return float(min(converted.x)), float(max(converted.x))
 
 
 def has_x_calibration(calmodel: Any) -> bool:

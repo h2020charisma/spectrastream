@@ -62,11 +62,15 @@ class CalibrationDraft:
     #: What merging and preprocessing actually did, per slot.
     provenance: dict[str, list[str]] = field(default_factory=dict)
     fitted: FittedCalibration | None = None
+    #: Which optical path `fitted` was derived for -- its wavelength and
+    #: instrument context came from whichever path was active at fit time.
+    derived_optical_path_id: str | None = None
     error: str | None = None
     detail: str | None = None
 
     def clear_result(self) -> None:
         self.fitted = None
+        self.derived_optical_path_id = None
         self.error = None
         self.detail = None
 
@@ -75,6 +79,15 @@ class CalibrationDraft:
         self.params.clear()
         self.provenance.clear()
         self.clear_result()
+
+    def invalidate_if_stale(self, optical_path_id: str | None) -> None:
+        """Clear a fitted result derived for a different optical path.
+
+        Otherwise switching paths after deriving a fit would let it be saved
+        under, or compared against, the wrong one.
+        """
+        if self.fitted is not None and self.derived_optical_path_id != optical_path_id:
+            self.clear_result()
 
     def available_slots(self) -> set[str]:
         """Slots with a spectrum ready for the engine."""

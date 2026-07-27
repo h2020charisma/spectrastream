@@ -38,6 +38,10 @@ DEFAULT_INVESTIGATION = "SpectraStream"
 SIGNAL_NAME = "Raman intensity"
 AXIS_NAME = "Raman shift"
 
+#: The axis name follows the declared units -- a nm or pixel upload is not a
+#: Raman shift, even though the unit attribute on the dataset says so too.
+AXIS_NAMES: dict[str, str] = {"cm-1": AXIS_NAME, "nm": "Wavelength", "pixel": "Pixel"}
+
 
 def _clean(value: Any) -> str | None:
     if value is None:
@@ -76,6 +80,7 @@ def build_metadata(
     original_filename: str | None = None,
     acquisition: Any | None = None,
     extra: Mapping[str, Any] | None = None,
+    units: str | None = None,
 ) -> dict[str, Any]:
     """Assemble the ``meta`` dict handed to pyambit.
 
@@ -84,7 +89,8 @@ def build_metadata(
     so passing ``None`` raises ``AttributeError`` on exactly the minimal-metadata
     path this floor exists to serve.
     """
-    meta: dict[str, Any] = {"@signal": SIGNAL_NAME, "@axes": [AXIS_NAME]}
+    axis_name = AXIS_NAMES.get(units or "cm-1", AXIS_NAME)
+    meta: dict[str, Any] = {"@signal": SIGNAL_NAME, "@axes": [axis_name]}
 
     # Whatever the vendor format carried. Lowest precedence: an explicit
     # profile entry should win over a stale header field.
@@ -186,6 +192,7 @@ def spectrum_to_nexus(
         original_filename=original_filename,
         acquisition=acquisition,
         extra=extra_metadata,
+        units=units,
     )
 
     papp = spe2ambit(

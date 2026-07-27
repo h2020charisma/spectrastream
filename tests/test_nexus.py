@@ -16,6 +16,7 @@ import pytest
 from spectrastream.acquisition import Acquisition
 from spectrastream.nexus import (
     AXIS_NAME,
+    AXIS_NAMES,
     SIGNAL_NAME,
     build_metadata,
     missing_minimum,
@@ -81,6 +82,18 @@ def test_floor_preserves_the_data(target_spectrum):
         np.testing.assert_allclose(
             np.asarray(nxdata[AXIS_NAME]), np.asarray(target_spectrum.spectrum.x)
         )
+
+
+@pytest.mark.parametrize("units", ["cm-1", "nm", "pixel"])
+def test_axes_label_matches_the_declared_units(target_spectrum, units):
+    """The unit *attribute* on the dataset was already correct; the dataset
+    *name* stayed "Raman shift" even for nm and pixel uploads."""
+    data = spectrum_to_nexus(target_spectrum.spectrum, units=units)
+    expected = AXIS_NAMES[units]
+    with _read_back(data) as (root, _):
+        nxdata = _spectrum_group(root)
+        assert nxdata.attrs["axes"] == expected
+        assert expected in nxdata
 
 
 def test_local_temp_path_does_not_leak_into_the_record(target_spectrum):

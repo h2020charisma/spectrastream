@@ -16,6 +16,7 @@ from spectrastream.profiles import (
     MAX_OPTICAL_PATHS,
     InstrumentProfile,
     OpticalPath,
+    calibrations_stale_after_wavelength_change,
     export_bytes,
     import_bytes,
     merge,
@@ -156,6 +157,7 @@ def edit_optical_path(profile: InstrumentProfile, path: OpticalPath | None):
                 icon=":material/error:",
             )
             return
+        old_wl = draft.laser_wl_nm
         draft.op_id = op_id.strip()
         draft.laser_wl_nm = float(laser) if laser else None
         draft.grating = grating.strip() or None
@@ -166,6 +168,19 @@ def edit_optical_path(profile: InstrumentProfile, path: OpticalPath | None):
         draft.max_laser_power_mw = float(max_power) if max_power else None
         draft.spectral_range = spectral_range.strip() or None
         draft.notes = notes.strip() or None
+
+        if not creating and calibrations_stale_after_wavelength_change(
+            old_wl, draft.laser_wl_nm, draft.calibrations
+        ):
+            old_text = f"{old_wl:g} nm" if old_wl else "no recorded wavelength"
+            new_wl = draft.laser_wl_nm
+            new_text = f"{new_wl:g} nm" if new_wl else "no wavelength"
+            st.toast(
+                f"{draft.op_id} now records {new_text} — {len(draft.calibrations)} "
+                f"existing calibration(s) were derived at {old_text} and may no "
+                "longer match. Re-derive or remove them.",
+                icon=":material/warning:",
+            )
 
         profile.add_optical_path(draft)
         state.library.upsert(profile)

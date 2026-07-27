@@ -169,6 +169,25 @@ def test_removing_the_file_clears_the_spectrum(target_spectrum):
     assert not page.download_button, "downloads offered for a removed file"
 
 
+def test_no_success_banner_when_the_nexus_record_could_not_be_written(target_spectrum):
+    """The reported bug: the "Ready" banner fired regardless of whether the
+    NeXus writer actually produced bytes -- it was gated only on whether a
+    calibration was applied, never on write success. With no laser
+    wavelength recorded, missing_minimum stays non-empty and nexus_bytes is
+    never produced, so no "Ready" banner should appear.
+    """
+    at = AppTest.from_file(APP)
+    _answer_browser(at, text=None)
+    at.run(timeout=60)
+
+    state = _state(at)
+    state.target = target_spectrum
+
+    page = _goto(at, "src/app_pages/convert.py")
+    assert not page.exception
+    assert not any("Ready" in s.value for s in page.success)
+
+
 def test_calibrate_page_reaches_the_protocol_choice_for_a_real_path():
     at = AppTest.from_file(APP)
     _answer_browser(at, text=None)

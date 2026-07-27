@@ -61,6 +61,23 @@ def to_axis(
     return spe
 
 
+def convert_bound(
+    value: float, spe_units: str, target_units: str, laser_wl_nm: float | None
+) -> float:
+    """Convert a single x-axis bound the way ``to_axis`` converts a spectrum's.
+
+    For a crop bound authored in one unit (a certified band, always cm-1)
+    applied to a spectrum uploaded in another.
+    """
+    if spe_units == target_units or laser_wl_nm is None:
+        return value
+    if spe_units == "cm-1" and target_units == "nm":
+        return float(shift_cm_1_to_abs_nm(value, laser_wl_nm))
+    if spe_units == "nm" and target_units == "cm-1":
+        return float(abs_nm_to_shift_cm_1(value, laser_wl_nm))
+    return value
+
+
 def run(
     spe: Spectrum,
     find_kw: Mapping[str, Any] | None = None,

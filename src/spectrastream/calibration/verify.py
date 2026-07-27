@@ -25,6 +25,8 @@ from ramanchada2.protocols.calibration.xcalibration import (
 )
 from ramanchada2.spectrum import Spectrum
 
+from spectrastream.peaks import to_axis
+
 from .engines.base import CalibrationError, FittedCalibration
 
 #: Certified line positions (cm-1) keyed by material, taken from ramanchada2's
@@ -61,14 +63,24 @@ def _reference_span(ref: dict[float, float]) -> tuple[float, float]:
     return lines[0], lines[-1]
 
 
-def _prepare(spe: Spectrum, material: str, ref: dict[float, float]) -> Spectrum:
+def _prepare(
+    spe: Spectrum,
+    material: str,
+    ref: dict[float, float],
+    spe_units: str = "cm-1",
+    laser_wl_nm: float | None = None,
+) -> Spectrum:
     """Trim to the material's band and remove pedestal + baseline.
 
     Mirrors the CHARISMA verification pre-processing: silicon is cropped tight
     around 520.45, other materials to their certified span (with a margin), then
     the pedestal is zeroed and a SNIP baseline removed so peak fitting sees the
     bands and not the background.
+
+    The certified span is cm-1, so the spectrum is converted to cm-1 first --
+    a trim in the spectrum's own nm or pixel units would crop the wrong region.
     """
+    spe = to_axis(spe, spe_units, "cm-1", laser_wl_nm)
     if material == "Si":
         low, high = 520.45 - 100, 520.45 + 100
     else:
@@ -81,6 +93,38 @@ def _prepare(spe: Spectrum, material: str, ref: dict[float, float]) -> Spectrum:
     y = np.asarray(spe.y) - float(np.min(spe.y))
     spe = spe.__class__(x=np.asarray(spe.x, dtype=float), y=y)
     return spe.subtract_baseline_rc1_snip(niter=40)
+
+
+def _prepared_cm1(
+    spe: Spectrum,
+    material: str,
+    ref: dict[float, float],
+    spe_units: str,
+    laser_wl_nm: float | None,
+    preprocess: bool,
+) -> Spectrum:
+    """The spectrum verification actually compares, always in cm-1.
+
+    ``preprocess`` only toggles whether trim + baseline run -- the axis is
+    converted to cm-1 either way, since certified positions and
+    ``match_peaks4analysis`` are always cm-1.
+    """
+    if spe_units == "pixel":
+        raise CalibrationError(
+            "Verification needs a Raman-shift or wavelength axis to crop and "
+            "match against certified positions; detector pixel positions "
+            "have no established conversion to either."
+        )
+    if spe_units != "cm-1" and laser_wl_nm is None:
+        raise CalibrationError(
+            "Converting this spectrum to Raman shift for verification needs "
+            "the calibration's excitation wavelength, which is not available."
+        )
+    if preprocess:
+        return _prepare(
+            spe, material, ref, spe_units=spe_units, laser_wl_nm=laser_wl_nm
+        )
+    return to_axis(spe, spe_units, "cm-1", laser_wl_nm)
 
 
 @dataclass
@@ -137,8 +181,10 @@ def verify_against_reference(
 
     # When the caller has already cropped and baselined (the Verify page does,
     # via its own controls), preprocessing again would double the baseline.
-    prepared = _prepare(spe, material, ref) if preprocess else spe
-    calibrated = fitted.apply(prepared, spe_units=spe_units)
+    laser_wl_nm = getattr(fitted, "laser_wl_nm", None)
+    prepared = _prepared_cm1(spe, material, ref, spe_units, laser_wl_nm, preprocess)
+    # `prepared` is cm-1 by construction (see _prepared_cm1) -- not spe_units.
+    calibrated = fitted.apply(prepared, spe_units="cm-1")
 
     matched = match_peaks4analysis(
         [prepared, calibrated],
@@ -281,8 +327,10 @@ def verify_relative_intensity(
             "This reference has no relative intensities to compare against."
         )
 
-    prepared = _prepare(spe, material, ref) if preprocess else spe
-    calibrated = fitted.apply(prepared, spe_units=spe_units)
+    laser_wl_nm = getattr(fitted, "laser_wl_nm", None)
+    prepared = _prepared_cm1(spe, material, ref, spe_units, laser_wl_nm, preprocess)
+    # `prepared` is cm-1 by construction (see _prepared_cm1) -- not spe_units.
+    calibrated = fitted.apply(prepared, spe_units="cm-1")
 
     before = _normalize_to_100(
         _fit_intensities(prepared, ref, profile, find_kw, fit_peaks_kw, tolerance)

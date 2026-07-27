@@ -18,6 +18,7 @@ from spectrastream.calibration import (
 )
 from spectrastream.cwa import (
     CwaExportError,
+    cm1_bounds,
     export_x_files,
     has_x_calibration,
     x_calibration_model,
@@ -87,6 +88,33 @@ def test_zeroed_calibration_reports_wavenumbers_and_exports(
     assert doc["laser_wl_nominal_nm"] == 532
     assert doc["model"]["format"] == "ramanchada2-calmodel"
     assert doc["si_peak_nm"] > 0
+
+
+def test_cm1_bounds_is_the_spectrums_own_range_in_cm1(neon_spectrum):
+    spe = neon_spectrum.spectrum
+    assert cm1_bounds(spe, "cm-1", 532.0) == (float(min(spe.x)), float(max(spe.x)))
+
+
+def test_cm1_bounds_converts_nm_using_the_laser_wavelength(neon_spectrum):
+    """The bug: CWA export passed the raw upload's range straight through,
+    unconverted, whatever unit it happened to be in."""
+    from ramanchada2.misc.utils.ramanshift_to_wavelength import shift_cm_1_to_abs_nm
+
+    spe = neon_spectrum.spectrum
+    nm_spe = spe.set_new_xaxis(shift_cm_1_to_abs_nm(spe.x, 532.0))
+
+    lo, hi = cm1_bounds(nm_spe, "nm", 532.0)
+    assert lo == pytest.approx(float(min(spe.x)), rel=1e-3)
+    assert hi == pytest.approx(float(max(spe.x)), rel=1e-3)
+
+
+def test_cm1_bounds_refuses_pixel_input(neon_spectrum):
+    """Pixel positions have no established conversion to Raman shift."""
+    assert cm1_bounds(neon_spectrum.spectrum, "pixel", 532.0) is None
+
+
+def test_cm1_bounds_refuses_nm_with_no_wavelength(neon_spectrum):
+    assert cm1_bounds(neon_spectrum.spectrum, "nm", None) is None
 
 
 def test_metadata_is_carried_into_the_json(neon_spectrum, silicon_spectrum):

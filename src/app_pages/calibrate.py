@@ -87,6 +87,7 @@ chosen_path = st.selectbox(
 )
 state.set_active_optical_path(chosen_path)
 optical_path = profile.optical_path(chosen_path)
+draft.invalidate_if_stale(optical_path.id)
 
 if optical_path.laser_wl_nm is None:
     st.warning(
@@ -163,6 +164,7 @@ if st.button(
             draft.fitted = engine.fit(
                 recipe, draft.engine_inputs(), context, params=draft.params
             )
+            draft.derived_optical_path_id = optical_path.id
             draft.error = None
             draft.detail = None
             status.update(label="Calibration derived", state="complete")
