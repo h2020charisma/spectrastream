@@ -56,12 +56,6 @@ Open <http://localhost:8501>.
 
 Supported Python versions are 3.10 through 3.12; Python 3.12 is the project default.
 
-> **Note** — `ramanchada2` and `pyambit` are pinned to unreleased branches that
-> carry the portable JSON calibration format and the NeXus writer. For local
-> development they resolve to sibling checkouts; see the comment above
-> `[tool.uv.sources]` in `pyproject.toml` for the git URLs to use in CI and
-> container builds, which cannot reach paths outside the build context.
-
 ## Run With Docker
 
 ```sh
