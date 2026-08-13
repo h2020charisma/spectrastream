@@ -1,0 +1,63 @@
+"""Pluggable calibration: declarative recipes over swappable engines.
+
+"No calibration" is represented by the absence of a recipe, not by a null
+engine -- the NeXus floor does not need a calibration object to produce a
+valid file.
+"""
+
+from .engines.base import (
+    CalibrationContext,
+    CalibrationEngine,
+    CalibrationError,
+    Diagnostic,
+    FittedCalibration,
+    StepOutcome,
+)
+from .registry import (
+    RecipeError,
+    all_recipes,
+    engine_for_recipe,
+    get_engine,
+    get_recipe,
+    recipes_for_wavelength,
+    reset_cache,
+)
+from .resolution import ResolutionResult, resolution_for
+from .spec import RecipeSpec, SpectrumSlot, StepSpec
+from .verify import (
+    MATERIAL_LABELS,
+    REFERENCE_MATERIALS,
+    IntensityResult,
+    VerifyResult,
+    has_relative_intensities,
+    verify_against_reference,
+    verify_relative_intensity,
+)
+
+__all__ = [
+    "CalibrationContext",
+    "CalibrationEngine",
+    "CalibrationError",
+    "Diagnostic",
+    "FittedCalibration",
+    "IntensityResult",
+    "MATERIAL_LABELS",
+    "REFERENCE_MATERIALS",
+    "RecipeError",
+    "RecipeSpec",
+    "ResolutionResult",
+    "SpectrumSlot",
+    "StepOutcome",
+    "StepSpec",
+    "VerifyResult",
+    "all_recipes",
+    "engine_for_recipe",
+    "get_engine",
+    "get_recipe",
+    "has_relative_intensities",
+    "recipes_for_wavelength",
+    "resolution_for",
+    "reset_cache",
+    "verify_against_reference",
+    "verify_relative_intensity",
+]

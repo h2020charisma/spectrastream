@@ -47,22 +47,27 @@ Run coverage or a focused test:
 
 ```sh
 uv run pytest --cov
-uv run pytest tests/basic_test.py::test_app
+uv run pytest tests/test_app_render.py::test_entry_point_renders
 ```
 
-Run pre-commit against staged files, named files, or the complete tree:
+During development, run pre-commit against staged or named files:
 
 ```sh
 uv run pre-commit run
 uv run pre-commit run --files path/to/changed.py
-uv run pre-commit run --all-files
 ```
 
-Ruff applies safe lint and import fixes, then formats Python files. Review and stage hook changes before rerunning the hooks.
+Before requesting review, run the same all-files quality check as CI:
+
+```sh
+SKIP=no-commit-to-branch uv run --no-sync pre-commit run --all-files --show-diff-on-failure
+```
+
+Ruff applies safe lint and import fixes, then formats Python files. A run that modifies files is not the final successful check: review and stage the changes, then rerun the all-files command until it passes without modifying anything. Inspect `git diff` and `git status` afterwards so no hook-generated change is omitted from the commit.
 
 The complete source tree passes every hook. CI runs pre-commit with `--all-files` and runs the complete test suite.
 
-Pytest treats warnings as errors. The current tests are Streamlit render smoke tests, so changes to widgets, session state, uploads, calibration processing, or downloads need interaction or utility-level regression tests rather than another render-only assertion.
+Pytest treats warnings as errors. The suite includes Streamlit render and interaction tests as well as framework-independent utility tests, so changes to widgets, session state, uploads, calibration processing, or downloads need interaction or utility-level regression tests rather than another render-only assertion.
 
 ## Dependencies
 
