@@ -270,3 +270,55 @@ def test_unknown_certificate_id_is_rejected_on_load():
     engine = Rc2Engine()
     with pytest.raises(CalibrationError, match="not a known"):
         engine.load(payload)
+
+
+def test_tampered_fitted_model_equation_is_rejected_on_load():
+    """``model`` (the fit of the measured reference) has its own eval'd
+    equation, independent of ``certificate``. Its functional form is not
+    free -- rc2 derives it entirely from the certificate -- so a value that
+    does not match must be rejected rather than evaluated."""
+    payload = _y_calibrated_payload()
+    payload["model"]["components"][0]["model"]["equation"] = (
+        "__import__('os').system('echo pwned') or (A0 + x*0)"
+    )
+
+    engine = Rc2Engine()
+    with pytest.raises(CalibrationError, match="does not match the certificate"):
+        engine.load(payload)
+
+
+def test_non_polynomial_certificate_model_round_trips():
+    """A log-Gaussian SRM certificate (e.g. 532/633/830 nm) is the other
+    branch of the equation check: the fitted model's equation must equal the
+    certificate's own equation verbatim, not the generated polynomial form."""
+    from ramanchada2.protocols.calibration.ycalibration import (
+        CertificatesDict,
+        YCalibrationComponent,
+    )
+    from ramanchada2.spectrum import Spectrum
+
+    certificate = CertificatesDict().get(wavelength=532, key="NIST532_SRM2242a")
+    assert certificate.polynomial_order is None  # exercising the non-poly branch
+
+    x = np.linspace(*certificate.raman_shift, 60)
+    reference = Spectrum(x=x, y=np.asarray(certificate.Y(x)))
+    component = YCalibrationComponent(
+        532, reference_spe_xcalibrated=reference, certificate=certificate
+    )
+    payload = {
+        "engine": "rc2",
+        "recipe": "test",
+        "model": {
+            "format": "ramanchada2-calmodel",
+            "version": 1,
+            "laser_wl": 532,
+            "nonmonotonic": "drop",
+            "prominence_coeff": 3,
+            "components": [component.to_dict()],
+        },
+        "outcomes": [],
+    }
+
+    engine = Rc2Engine()
+    fitted = engine.load(payload)
+    assert fitted.calmodel.components[0].ref.id == "NIST532_SRM2242a"
