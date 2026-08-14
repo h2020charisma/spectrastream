@@ -480,6 +480,38 @@ def _resolve_certificate(
     return certificates.get(wavelength=int(laser_wl), key=key)
 
 
+def _reresolve_certificates(calmodel: CalibrationModel) -> None:
+    """Replace every loaded certificate with rc2's own copy, by id + wavelength.
+
+    ``YCalibrationComponent.from_dict`` rebuilds ``ref`` straight from the file
+    via ``YCalibrationCertificate.model_validate`` -- ``equation`` and ``params``
+    included, both later ``eval``'d with a live ``__builtins__``. A saved
+    profile is meant to name a certificate, not carry one; on load, only the
+    name is trusted, and the certificate itself always comes from
+    ``CertificatesDict``, the same source the derivation dropdown uses.
+    """
+    for component in calmodel.components:
+        if not isinstance(component, YCalibrationComponent):
+            continue
+        ref = component.ref
+        cert_id = getattr(ref, "id", None)
+        wavelength = getattr(ref, "wavelength", None)
+        if cert_id is None or wavelength is None:
+            raise CalibrationError(
+                "Saved intensity calibration is missing its certificate id or "
+                "wavelength; it cannot be trusted."
+            )
+        try:
+            component.ref = CertificatesDict().get(
+                wavelength=int(wavelength), key=cert_id
+            )
+        except KeyError as err:
+            raise CalibrationError(
+                f"Certificate {cert_id!r} for {wavelength:g} nm is not a known "
+                "intensity-calibration certificate."
+            ) from err
+
+
 def _action_y_intensity(
     calmodel: CalibrationModel,
     step: StepSpec,
@@ -622,6 +654,7 @@ class Rc2Engine:
 
     def load(self, data: Mapping[str, Any]) -> Rc2Fitted:
         calmodel = CalibrationModel.from_dict(dict(data["model"]))
+        _reresolve_certificates(calmodel)
         outcomes = [
             StepOutcome(
                 o.get("step_id", ""),
