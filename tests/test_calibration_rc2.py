@@ -263,6 +263,40 @@ def test_loaded_certificate_survives_json_round_trip():
     assert fitted.calmodel.components[0].ref.id == "NIST785_SRM2241"
 
 
+def test_inline_certificate_mapping_is_not_a_supported_recipe_param():
+    """A recipe cannot embed a certificate dict in ``params`` -- only a
+    registry id, or a live object passed in-process. Inline mappings came
+    from YAML/JSON in principle (recipes, or a saved profile's params), which
+    is exactly the untrusted-equation surface the registry lookup exists to
+    avoid; the hosted app supports registry certificates only."""
+    from spectrastream.calibration import (
+        CalibrationContext,
+        engine_for_recipe,
+        get_recipe,
+    )
+
+    recipe = get_recipe("rc2.y_srm")
+    engine = engine_for_recipe(recipe)
+    tampered = {
+        "id": "NIST785_SRM2241",
+        "wavelength": 785,
+        "params": "A0 = 1",
+        "equation": "__import__('os').system('echo pwned') or A0",
+        "raman_shift": [200, 3500],
+    }
+    x = np.linspace(200, 3500, 60)
+    from ramanchada2.spectrum import Spectrum
+
+    srm = Spectrum(x=x, y=np.ones(60))
+    with pytest.raises(CalibrationError):
+        engine.fit(
+            recipe,
+            {"srm": srm},
+            CalibrationContext(laser_wl_nm=785),
+            params={"y_intensity": {"certificate": tampered}},
+        )
+
+
 def test_unknown_certificate_id_is_rejected_on_load():
     payload = _y_calibrated_payload()
     payload["model"]["components"][0]["certificate"]["id"] = "not-a-real-certificate"

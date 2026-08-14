@@ -457,8 +457,14 @@ def _resolve_certificate(
     cert = params.get("certificate")
     if isinstance(cert, YCalibrationCertificate):
         return cert
-    if isinstance(cert, Mapping):
-        return YCalibrationCertificate.model_validate(dict(cert))
+    if cert is not None and not isinstance(cert, str):
+        # Only a registry id (or a live object, above) is accepted -- never a
+        # mapping. A mapping could carry its own equation/params, which would
+        # be eval'd unchecked; the hosted app trusts CertificatesDict only.
+        raise CalibrationError(
+            f"Intensity calibration certificate must be a registry id, not "
+            f"{type(cert).__name__!r}."
+        )
     if laser_wl is None:
         raise CalibrationError(
             "Intensity calibration needs a laser wavelength to pick a certificate."
@@ -469,9 +475,7 @@ def _resolve_certificate(
         raise CalibrationError(
             f"No intensity-calibration certificate for {laser_wl:g} nm."
         )
-    key = cert if isinstance(cert, str) else None
-    if key is None:
-        key = next(iter(available))
+    key = cert if cert is not None else next(iter(available))
     if key not in available:
         raise CalibrationError(
             f"Certificate {key!r} not available for {laser_wl:g} nm "
