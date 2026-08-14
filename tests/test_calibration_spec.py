@@ -12,7 +12,7 @@ from spectrastream.calibration.registry import (
     load_recipe_file,
     load_recipes,
 )
-from spectrastream.calibration.spec import RecipeSpec
+from spectrastream.calibration.spec import RecipeSpec, base_slot_id, entry_key
 
 
 def _minimal(**overrides):
@@ -107,6 +107,63 @@ def test_runnable_steps_skips_absent_optional_input():
     assert [s.id for s in recipe.runnable_steps({"a", "b"})] == ["s1", "s2"]
     assert recipe.missing_required_slots({"a"}) == []
     assert recipe.missing_required_slots(set()) == ["a"]
+
+
+def test_entry_key_round_trips_to_its_base_slot_id():
+    assert base_slot_id(entry_key("anchor", 0)) == "anchor"
+    assert base_slot_id(entry_key("anchor", 7)) == "anchor"
+    # A plain slot id (no entries) is its own base -- callers should not need to
+    # special-case a non-repeatable slot before resolving it.
+    assert base_slot_id("anchor") == "anchor"
+
+
+def test_recipe_slot_resolves_a_repeatable_entry_to_its_definition():
+    recipe = RecipeSpec.model_validate(
+        _minimal(slots=[{"id": "a", "label": "A", "repeatable": True}])
+    )
+    assert recipe.slot(entry_key("a", 0)) is recipe.slot("a")
+    assert recipe.slot(entry_key("a", 3)) is recipe.slot("a")
+
+
+def test_missing_required_slots_accepts_any_entry_of_a_repeatable_slot():
+    """A repeatable slot is satisfied by ANY entry being present -- the caller does not
+    have to have filled a specific index."""
+    recipe = RecipeSpec.model_validate(
+        _minimal(slots=[{"id": "a", "label": "A", "repeatable": True}])
+    )
+    assert recipe.missing_required_slots({entry_key("a", 0)}) == []
+    assert recipe.missing_required_slots({entry_key("a", 2)}) == []
+    assert recipe.missing_required_slots(set()) == ["a"]
+
+
+def test_runnable_steps_treats_any_entry_as_the_slot_being_present():
+    recipe = RecipeSpec.model_validate(
+        _minimal(slots=[{"id": "a", "label": "A", "repeatable": True}])
+    )
+    assert [s.id for s in recipe.runnable_steps({entry_key("a", 1)})] == ["s1"]
+
+
+def test_finds_peaks_in_must_name_a_consumed_slot():
+    with pytest.raises(ValidationError, match="finds_peaks_in"):
+        RecipeSpec.model_validate(
+            _minimal(
+                slots=[
+                    {"id": "a", "label": "A"},
+                    {"id": "b", "label": "B", "required": False},
+                ],
+                steps=[
+                    {
+                        "id": "s1",
+                        "label": "S1",
+                        "action": "x_curve",
+                        "inputs": ["a"],
+                        "produces": "x_axis",
+                        # "b" is not among this step's inputs.
+                        "finds_peaks_in": ["b"],
+                    }
+                ],
+            )
+        )
 
 
 def test_wavelength_filter():

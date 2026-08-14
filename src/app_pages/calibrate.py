@@ -158,6 +158,10 @@ if st.button(
         # Each slot carries the units the user declared for it; a neon lamp in
         # nm alongside a silicon wafer in cm-1 is perfectly ordinary.
         input_units=draft.input_units(),
+        # Only populated for slots that leave the material open, or accept
+        # certified positions -- most recipes fix both in the slot itself.
+        input_materials=draft.input_materials(),
+        input_reference_peaks=draft.input_reference_peaks(),
     )
     with st.status("Deriving calibration…", expanded=False) as status:
         try:

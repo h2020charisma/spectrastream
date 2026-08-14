@@ -27,9 +27,27 @@ class CalibrationContext:
     #: assuming the recipe's default. A neon spectrum in nm and a silicon one
     #: in cm-1 is a perfectly ordinary combination.
     input_units: Mapping[str, str] = field(default_factory=dict)
+    #: Reference material per slot id, for recipes whose slots do not name one. A
+    #: protocol built on fixed materials (neon, silicon) declares them in the recipe;
+    #: one that accepts any material the service holds reference peaks for cannot, so
+    #: the user names it per upload -- the same reason ``input_units`` exists.
+    input_materials: Mapping[str, str] = field(default_factory=dict)
+    #: Certified peak positions per slot id ({position_cm-1: relative intensity}), for
+    #: recipes whose slots accept them (``SpectrumSlot.accepts_reference_peaks``). Lets a
+    #: caller work with a material the service does not carry a table for, or override
+    #: the one it does. Absent for a slot the user left to the service's own table.
+    input_reference_peaks: Mapping[str, Mapping[float, float]] = field(
+        default_factory=dict
+    )
 
     def units_for(self, slot_id: str, default: str = "cm-1") -> str:
         return self.input_units.get(slot_id) or default
+
+    def material_for(self, slot_id: str, default: str | None = None) -> str | None:
+        return self.input_materials.get(slot_id) or default
+
+    def reference_peaks_for(self, slot_id: str) -> Mapping[float, float] | None:
+        return self.input_reference_peaks.get(slot_id) or None
 
 
 @dataclass

@@ -14,6 +14,11 @@ from ramanchada2.spectrum import Spectrum
 
 from spectrastream.acquisition import Acquisition
 from spectrastream.calibration.engines.base import FittedCalibration
+# Re-exported for callers that only otherwise import from ui.state: the entry-key
+# convention is defined once, in spec.py, since RecipeSpec's own methods (slot(),
+# missing_required_slots(), runnable_steps()) need to resolve it too.
+from spectrastream.calibration.spec import base_slot_id as slot_id_of
+from spectrastream.calibration.spec import entry_key
 from spectrastream.ingest import LoadedSpectrum
 from spectrastream.preprocess import PreprocessStep
 from spectrastream.profiles import InstrumentProfile, OpticalPath, ProfileLibrary
@@ -23,7 +28,8 @@ STATE_KEY = "spectrastream"
 
 @dataclass
 class SlotInput:
-    """Everything supplied for one recipe slot.
+    """Everything supplied for one recipe slot -- or, for a repeatable slot, for one
+    entry in it.
 
     A slot can hold several acquisitions -- replicates, or a set of exposures
     to HDR-merge -- so the uploaded files, their exposure times and the
@@ -38,6 +44,13 @@ class SlotInput:
     merged: Spectrum | None = None
     #: Result of the last "try peak finding" run: (peaks, error, was_fitted).
     peak_trial: tuple[Any, str | None, bool] | None = None
+    #: Which reference material this entry holds, when the recipe does not fix one
+    #: (``SpectrumSlot.material_required``).
+    material: str | None = None
+    #: Certified positions for that material, {position_cm-1: relative intensity}, when
+    #: the recipe accepts them (``SpectrumSlot.accepts_reference_peaks``). Supplied only
+    #: to work with a material the service does not carry, or to override its table.
+    reference_peaks: dict[float, float] | None = None
 
     def steps_for(self, slot) -> list[PreprocessStep]:
         """Preprocessing for this slot, seeded from the recipe's defaults."""
@@ -57,7 +70,10 @@ class CalibrationDraft:
     """A calibration being built on the calibrate page, before it is saved."""
 
     recipe_id: str | None = None
+    #: Keyed by slot id, or by ``entry_key(slot_id, index)`` for a repeatable slot.
     slots: dict[str, SlotInput] = field(default_factory=dict)
+    #: How many entries a repeatable slot currently shows, keyed by slot id.
+    entry_counts: dict[str, int] = field(default_factory=dict)
     params: dict[str, Any] = field(default_factory=dict)
     #: What merging and preprocessing actually did, per slot.
     provenance: dict[str, list[str]] = field(default_factory=dict)
@@ -76,6 +92,7 @@ class CalibrationDraft:
 
     def reset(self) -> None:
         self.slots.clear()
+        self.entry_counts.clear()
         self.params.clear()
         self.provenance.clear()
         self.clear_result()
@@ -106,6 +123,22 @@ class CalibrationDraft:
             sid: entry.units
             for sid, entry in self.slots.items()
             if entry.merged is not None
+        }
+
+    def input_materials(self) -> dict[str, str]:
+        """Declared reference material per slot, for a slot that leaves it open."""
+        return {
+            sid: entry.material
+            for sid, entry in self.slots.items()
+            if entry.merged is not None and entry.material
+        }
+
+    def input_reference_peaks(self) -> dict[str, dict[float, float]]:
+        """Declared certified peak positions per slot, for a slot that accepts them."""
+        return {
+            sid: entry.reference_peaks
+            for sid, entry in self.slots.items()
+            if entry.merged is not None and entry.reference_peaks
         }
 
     def unit_groups(self) -> dict[str, list[str]]:

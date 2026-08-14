@@ -28,7 +28,7 @@ from spectrastream.preprocess import (
 )
 from spectrastream.upload import files_changed
 from ui.charts import show_spectrum, x_title
-from ui.state import CalibrationDraft, SlotInput
+from ui.state import CalibrationDraft, SlotInput, entry_key, slot_id_of
 
 UNIT_LABELS = {
     "cm-1": "Raman shift (cm⁻¹)",
@@ -68,11 +68,40 @@ def _tracked(draft: CalibrationDraft, old: Any, new: Any) -> Any:
 def _finds_peaks(recipe: RecipeSpec, slot_id: str) -> bool:
     """Whether any step consuming this slot actually looks for peaks.
 
-    Intensity calibration does not: YCalibrationComponent resamples the
-    measured reference and divides by the certificate's response. Offering
-    peak finding there would be offering a control that does nothing.
+    A step says which of its inputs it reads peaks from when that is not all of
+    them (``StepSpec.finds_peaks_in``) -- a step can derive a correction from
+    reference positions alone yet still read a band apex from a laser-zeroing
+    material, and showing controls on the former would imply a tuning knob that
+    changes nothing.
+
+    Falling back on the product is a guess for steps that do not declare it.
+    Intensity calibration is the case it gets right: YCalibrationComponent
+    resamples the measured reference and divides by the certificate's response,
+    so it finds no peaks.
     """
-    return any(s.produces != "y_response" for s in _steps_using(recipe, slot_id))
+    for step in _steps_using(recipe, slot_id):
+        if step.finds_peaks_in is not None:
+            if slot_id in step.finds_peaks_in:
+                return True
+        elif step.produces != "y_response":
+            return True
+    return False
+
+
+def _no_peak_finding_reason(recipe: RecipeSpec, slot_id: str) -> str:
+    """Why this slot has no peak-finding controls -- the two cases differ, and
+    telling a user "intensity calibration does not look for peaks" about an
+    x-axis anchor would be simply untrue."""
+    steps = _steps_using(recipe, slot_id)
+    if any(s.finds_peaks_in is not None for s in steps):
+        return (
+            "This calibration does not look for peaks in this material — it "
+            "works from its known reference positions."
+        )
+    return (
+        "Intensity calibration does not look for peaks — the measured "
+        "reference is resampled and divided by the certificate's response."
+    )
 
 
 def certified_range(
@@ -219,7 +248,9 @@ def _peak_settings(recipe: RecipeSpec, draft: CalibrationDraft, slot_id: str):
     return dict(find_kw), coeff, should_fit
 
 
-def _resolve_slot(slot: SpectrumSlot, draft: CalibrationDraft) -> str | None:
+def _resolve_slot(
+    slot: SpectrumSlot, draft: CalibrationDraft, key: str | None = None
+) -> str | None:
     """Merge and preprocess one slot into the spectrum the engine will see.
 
     Called from the uploader rather than only from resolve_inputs, because the
@@ -227,7 +258,8 @@ def _resolve_slot(slot: SpectrumSlot, draft: CalibrationDraft) -> str | None:
     it later meant a freshly uploaded spectrum showed "upload a spectrum" until
     something else forced a rerun.
     """
-    entry = draft.slots.get(slot.id)
+    key = key or slot.id
+    entry = draft.slots.get(key)
     if entry is None or not entry.loaded:
         if entry is not None:
             entry.merged = None
@@ -250,7 +282,7 @@ def _resolve_slot(slot: SpectrumSlot, draft: CalibrationDraft) -> str | None:
         return f"{slot.label}: {err}"
 
     entry.merged = merged
-    draft.provenance[slot.id] = [how, *applied]
+    draft.provenance[key] = [how, *applied]
     return None
 
 
@@ -259,13 +291,15 @@ def _try_peaks(
     recipe: RecipeSpec,
     draft: CalibrationDraft,
     laser_wl_nm: float | None,
+    key: str | None = None,
 ) -> None:
     """Show what ramanchada2's fit_peaks does with the current settings.
 
     Finding is cheap and runs on every change; fitting is what takes time, so
     it is asked for explicitly.
     """
-    entry = draft.slots.get(slot.id)
+    key = key or slot.id
+    entry = draft.slots.get(key)
     if entry is None or entry.merged is None:
         st.caption("Upload a spectrum to try peak finding.")
         return
@@ -281,7 +315,7 @@ def _try_peaks(
             "Peak profile",
             options=profiles,
             index=0,
-            key=f"prof_{recipe.id}_{slot.id}",
+            key=f"prof_{recipe.id}_{key}",
         )
     )
 
@@ -315,7 +349,7 @@ def _try_peaks(
 
     if st.button(
         "Fit these peaks",
-        key=f"try_{recipe.id}_{slot.id}",
+        key=f"try_{recipe.id}_{key}",
         icon=":material/play_arrow:",
         help="Fitting every candidate is slow — seconds to minutes.",
     ):
@@ -347,15 +381,24 @@ def _slot_uploader(
     recipe: RecipeSpec,
     draft: CalibrationDraft,
     laser_wl_nm: float | None,
+    key: str | None = None,
 ) -> list[str]:
-    """One slot: files, units, exposures, preprocessing. Returns problems."""
+    """One slot -- or one entry of a repeatable slot: files, units, exposures,
+    preprocessing. Returns problems.
+
+    ``key`` addresses the draft entry and the widgets; it differs from
+    ``slot.id`` only for a repeatable slot, whose entries each hold a different
+    material. Recipe lookups still use ``slot.id``, since every entry of a slot
+    shares the same recipe definition.
+    """
     problems: list[str] = []
-    entry = draft.slots.setdefault(slot.id, SlotInput(units=slot.units))
+    key = key or slot.id
+    entry = draft.slots.setdefault(key, SlotInput(units=slot.units))
 
     label = slot.label if slot.required else f"{slot.label} (optional)"
     uploaded = st.file_uploader(
         label,
-        key=f"slot_{draft.recipe_id}_{slot.id}",
+        key=f"slot_{draft.recipe_id}_{key}",
         accept_multiple_files=slot.accept_multiple,
         help=slot.help,
     )
@@ -394,7 +437,7 @@ def _slot_uploader(
         options=unit_options,
         index=unit_options.index(entry.units) if entry.units in unit_options else 0,
         format_func=lambda u: UNIT_LABELS[u],
-        key=f"units_{draft.recipe_id}_{slot.id}",
+        key=f"units_{draft.recipe_id}_{key}",
     )
     if chosen_units != entry.units:
         entry.units = chosen_units
@@ -402,25 +445,24 @@ def _slot_uploader(
             item.units = chosen_units
         draft.clear_result()
 
+    _material_controls(slot, recipe, draft, entry, key)
+
     if len(entry.loaded) > 1:
-        _exposure_inputs(slot, draft, entry)
+        _exposure_inputs(slot, draft, entry, key)
 
-    _preprocess_controls(slot, recipe, draft, entry, laser_wl_nm)
+    _preprocess_controls(slot, recipe, draft, entry, laser_wl_nm, key)
 
-    problem = _resolve_slot(slot, draft)
+    problem = _resolve_slot(slot, draft, key)
     if problem:
         problems.append(problem)
 
     # The certificate belongs beside the spectrum it describes, not in a
     # settings panel further down the page.
-    _certificate_control(slot, recipe, draft, laser_wl_nm)
+    _certificate_control(slot, recipe, draft, laser_wl_nm, key)
 
     if not _finds_peaks(recipe, slot.id):
-        st.caption(
-            "Intensity calibration does not look for peaks — the measured "
-            "reference is resampled and divided by the certificate's response."
-        )
-        _show_slot(slot, draft)
+        st.caption(_no_peak_finding_reason(recipe, slot.id))
+        _show_slot(slot, draft, key)
         return problems
 
     # Controls fold away; the spectrum and its peaks stay visible, because
@@ -431,17 +473,174 @@ def _slot_uploader(
             "suits every instrument."
         )
         _peak_controls(slot, recipe, draft)
-    _try_peaks(slot, recipe, draft, laser_wl_nm)
+    _try_peaks(slot, recipe, draft, laser_wl_nm, key)
     return problems
 
 
-def _show_slot(slot: SpectrumSlot, draft: CalibrationDraft) -> None:
+#: A material name that appears in no known-materials list -- st.selectbox needs a
+#: sentinel value distinct from any real material name to represent "something else".
+_CUSTOM_MATERIAL = "__custom__"
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _known_materials_cached(algorithm_id: str) -> list[dict]:
+    """Cached wrapper over the engine's fetch -- called on every rerun a slot with an
+    open material renders, and the list changes only when the service's own reference
+    tables do."""
+    from spectrastream.calibration.engines.remote import fetch_materials
+
+    return fetch_materials(algorithm_id)
+
+
+def _material_controls(
+    slot: SpectrumSlot,
+    recipe: RecipeSpec,
+    draft: CalibrationDraft,
+    entry: SlotInput,
+    key: str,
+) -> None:
+    """Which reference material this entry holds, and its certified positions.
+
+    Only for slots the recipe leaves open: a protocol that accepts any material
+    cannot name it in advance, so the user does. Known materials -- the ones
+    the service already holds a table for -- come from the service itself
+    (GET /v1/algorithms/{id}/materials) as a dropdown, the same shape as the
+    Verify page's REFERENCE_MATERIALS selector; anything else is entered as
+    positions directly, same as Verify's "custom lines" option.
+    """
+    known = (
+        _known_materials_cached(recipe.algorithm_id or "") if recipe.algorithm_id else []
+    )
+    if slot.material_required and not known:
+        # Silent here is worse than silent in the log: a dropdown with nothing in it
+        # but "Something else..." looks broken, not empty, unless it says why.
+        st.caption(
+            ":orange[Could not reach the calibration service for its known-materials "
+            "list — every material will need to be entered by name below.]"
+        )
+
+    if slot.material_required:
+        options = [m["name"] for m in known] + [_CUSTOM_MATERIAL]
+        current = entry.material if entry.material in options else _CUSTOM_MATERIAL
+        chosen = st.selectbox(
+            "Reference material",
+            options=options,
+            index=options.index(current),
+            format_func=lambda m: "Something else…" if m == _CUSTOM_MATERIAL else m,
+            key=f"mat_{draft.recipe_id}_{key}",
+            help=(
+                "The material this spectrum is of, matched against the "
+                "calibration service's own reference tables. Choose "
+                "“Something else…” for a material it does not "
+                "already know, and give its positions below."
+            ),
+        )
+        if chosen == _CUSTOM_MATERIAL:
+            # entry.material is only ever a real name or None here -- once a known
+            # material is chosen it stops being an "unknown name" to prefill from.
+            prefill = entry.material if entry.material not in options else ""
+            material = st.text_input(
+                "Material name",
+                value=prefill or "",
+                key=f"matname_{draft.recipe_id}_{key}",
+            ).strip()
+        else:
+            material = chosen
+        if material != (entry.material or ""):
+            entry.material = material or None
+            draft.clear_result()
+
+    if not slot.accepts_reference_peaks:
+        return
+
+    # The material this slot actually resolves to -- named by the recipe when it is
+    # fixed, chosen above when it is not -- so the caption below can say exactly whose
+    # table applies instead of leaving "the service's own table" unspecified.
+    resolved_material = slot.material or entry.material
+    by_name = {m["name"]: m for m in known}
+    known_peaks = (by_name.get(resolved_material) or {}).get("reference_peaks")
+
+    if resolved_material and known_peaks and not entry.reference_peaks:
+        st.caption(
+            f"Using {resolved_material}’s known positions from the calibration "
+            f"service ({len(known_peaks)} lines). Override them below if needed."
+        )
+    elif resolved_material and not known_peaks:
+        st.caption(
+            f"The calibration service has no known positions for "
+            f"{resolved_material!r} — supply them below, or nothing will anchor "
+            "this material."
+        )
+
+    with st.expander(
+        "Reference peak positions",
+        icon=":material/straighten:",
+        expanded=bool(resolved_material) and not known_peaks,
+    ):
+        st.caption(
+            "Certified positions for this material, one per line as "
+            "`position` or `position, relative intensity`. Leave empty to use "
+            f"the value above -- {resolved_material}'s table on the calibration "
+            "service -- as-is."
+            if resolved_material
+            else "Certified positions for this material, one per line as "
+            "`position` or `position, relative intensity`."
+        )
+        text = st.text_area(
+            "Positions (cm⁻¹)",
+            value=_peaks_to_text(entry.reference_peaks),
+            key=f"refpk_{draft.recipe_id}_{key}",
+            height=120,
+            label_visibility="collapsed",
+        )
+        parsed, error = _parse_reference_peaks(text)
+        if error:
+            st.error(error, icon=":material/error:")
+        elif parsed != entry.reference_peaks:
+            entry.reference_peaks = parsed
+            draft.clear_result()
+
+
+def _peaks_to_text(peaks: dict[float, float] | None) -> str:
+    if not peaks:
+        return ""
+    return "\n".join(f"{pos:g}, {weight:g}" for pos, weight in sorted(peaks.items()))
+
+
+def _parse_reference_peaks(
+    text: str,
+) -> tuple[dict[float, float] | None, str | None]:
+    """``{position: relative intensity}`` from one entry per line.
+
+    Intensity is optional and defaults to 1.0 -- most certified tables give
+    positions only, and a table of equal weights is exactly that.
+    """
+    peaks: dict[float, float] = {}
+    for lineno, raw in enumerate(text.splitlines(), start=1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p for p in line.replace(",", " ").split() if p]
+        try:
+            position = float(parts[0])
+            weight = float(parts[1]) if len(parts) > 1 else 1.0
+        except (ValueError, IndexError):
+            return None, f"Line {lineno} is not a position: {raw.strip()!r}"
+        if len(parts) > 2:
+            return None, f"Line {lineno} has more than a position and intensity"
+        peaks[position] = weight
+    return (peaks or None), None
+
+
+def _show_slot(
+    slot: SpectrumSlot, draft: CalibrationDraft, key: str | None = None
+) -> None:
     """The spectrum as the engine will receive it."""
-    entry = draft.slots.get(slot.id)
+    entry = draft.slots.get(key or slot.id)
     if entry is None or entry.merged is None:
         return
     show_spectrum(
-        {slot.label: (entry.merged.x, entry.merged.y)},
+        {entry.material or slot.label: (entry.merged.x, entry.merged.y)},
         height=240,
         x_title=x_title(entry.units),
     )
@@ -452,6 +651,7 @@ def _certificate_control(
     recipe: RecipeSpec,
     draft: CalibrationDraft,
     laser_wl_nm: float | None,
+    key: str | None = None,
 ) -> None:
     """Which certified material this spectrum is, beside its upload."""
     from ramanchada2.protocols.calibration.ycalibration import CertificatesDict
@@ -480,7 +680,9 @@ def _certificate_control(
         scope["certificate"] = _tracked(draft, current, chosen)
 
 
-def _exposure_inputs(slot, draft: CalibrationDraft, entry: SlotInput) -> None:
+def _exposure_inputs(
+    slot, draft: CalibrationDraft, entry: SlotInput, key: str | None = None
+) -> None:
     """Exposure per file, so different exposures can be HDR-merged."""
     with st.expander(
         f"{len(entry.loaded)} acquisitions — how to combine them",
@@ -502,7 +704,7 @@ def _exposure_inputs(slot, draft: CalibrationDraft, entry: SlotInput) -> None:
                     "Exposure (ms)",
                     value=float(old or 0.0),
                     step=100.0,
-                    key=f"exp_{draft.recipe_id}_{slot.id}_{index}",
+                    key=f"exp_{draft.recipe_id}_{key or slot.id}_{index}",
                     label_visibility="collapsed" if index else "visible",
                 )
                 or None
@@ -516,6 +718,7 @@ def _preprocess_controls(
     draft: CalibrationDraft,
     entry: SlotInput,
     laser_wl_nm: float | None = None,
+    key: str | None = None,
 ) -> None:
     """Toggles and parameters for the preprocessing this recipe offers."""
     if not slot.preprocess:
@@ -540,10 +743,10 @@ def _preprocess_controls(
                     icon=":material/warning:",
                 )
         for index, step in enumerate(steps):
-            key = f"pp_{draft.recipe_id}_{slot.id}_{step.op}_{index}"
+            widget_key = f"pp_{draft.recipe_id}_{key or slot.id}_{step.op}_{index}"
             old_enabled = step.enabled
             step.enabled = st.checkbox(
-                step.display_label(), value=step.enabled, key=key
+                step.display_label(), value=step.enabled, key=widget_key
             )
             if step.enabled != old_enabled:
                 draft.clear_result()
@@ -561,12 +764,12 @@ def _preprocess_controls(
                 cols = st.columns(2)
                 old_min = step.params.get("min", low)
                 new_min = cols[0].number_input(
-                    "From", value=float(old_min), key=f"{key}_min"
+                    "From", value=float(old_min), key=f"{widget_key}_min"
                 )
                 step.params["min"] = _tracked(draft, old_min, new_min)
                 old_max = step.params.get("max", high)
                 new_max = cols[1].number_input(
-                    "To", value=float(old_max), key=f"{key}_max"
+                    "To", value=float(old_max), key=f"{widget_key}_max"
                 )
                 step.params["max"] = _tracked(draft, old_max, new_max)
             elif step.op == "baseline":
@@ -577,7 +780,7 @@ def _preprocess_controls(
                     "Method",
                     options=methods,
                     index=methods.index(current) if current in methods else 0,
-                    key=f"{key}_method",
+                    key=f"{widget_key}_method",
                 )
                 step.params["method"] = _tracked(draft, current, chosen_method)
                 old_niter = step.params.get("niter", 30)
@@ -585,7 +788,7 @@ def _preprocess_controls(
                     "Iterations",
                     value=int(old_niter),
                     step=1,
-                    key=f"{key}_niter",
+                    key=f"{widget_key}_niter",
                 )
                 step.params["niter"] = _tracked(draft, old_niter, new_niter)
             elif step.op == "normalize":
@@ -596,7 +799,7 @@ def _preprocess_controls(
                     options=strategies,
                     index=(strategies.index(current) if current in strategies else 0),
                     format_func=lambda s: NORMALIZE_LABELS.get(s, s),
-                    key=f"{key}_strategy",
+                    key=f"{widget_key}_strategy",
                     help=(
                         "Min-max rescales to 0–1; area and density normalise "
                         "the integral; the L-norms divide by a vector norm."
@@ -611,7 +814,7 @@ def _preprocess_controls(
                     "Method",
                     options=methods,
                     index=methods.index(current) if current in methods else 0,
-                    key=f"{key}_smethod",
+                    key=f"{widget_key}_smethod",
                 )
                 step.params["method"] = _tracked(draft, current, chosen_method)
                 if step.params["method"] == "savgol":
@@ -621,7 +824,7 @@ def _preprocess_controls(
                         value=int(old_window),
                         step=2,
                         min_value=3,
-                        key=f"{key}_win",
+                        key=f"{widget_key}_win",
                     )
                     step.params["window_length"] = _tracked(
                         draft, old_window, new_window
@@ -634,8 +837,39 @@ def slot_uploaders(
     """Render every slot. Returns messages for inputs that failed to load."""
     problems: list[str] = []
     for slot in recipe.slots:
-        with st.container(border=True):
-            problems.extend(_slot_uploader(slot, recipe, draft, laser_wl_nm))
+        if not slot.repeatable:
+            with st.container(border=True):
+                problems.extend(_slot_uploader(slot, recipe, draft, laser_wl_nm))
+            continue
+
+        # A repeatable slot is filled once per material. Entries are never
+        # combined with each other -- only the acquisitions within one are --
+        # so each renders as its own independent uploader.
+        count = draft.entry_counts.setdefault(slot.id, 1)
+        for index in range(count):
+            with st.container(border=True):
+                key = entry_key(slot.id, index)
+                st.caption(f"{slot.label} {index + 1} of {count}")
+                problems.extend(
+                    _slot_uploader(slot, recipe, draft, laser_wl_nm, key=key)
+                )
+        cols = st.columns(2)
+        if cols[0].button(
+            "Add another material",
+            key=f"add_{draft.recipe_id}_{slot.id}",
+            icon=":material/add:",
+        ):
+            draft.entry_counts[slot.id] = count + 1
+            st.rerun()
+        if count > 1 and cols[1].button(
+            "Remove last",
+            key=f"del_{draft.recipe_id}_{slot.id}",
+            icon=":material/remove:",
+        ):
+            draft.slots.pop(entry_key(slot.id, count - 1), None)
+            draft.entry_counts[slot.id] = count - 1
+            draft.clear_result()
+            st.rerun()
     return problems
 
 
@@ -665,25 +899,38 @@ def preview(recipe: RecipeSpec, draft: CalibrationDraft) -> None:
     plot nobody can read -- the numbers do not mean the same thing.
     """
     groups = draft.unit_groups()
-    for units, slot_ids in groups.items():
+    for units, keys in groups.items():
+        # A repeatable slot's entries share one label but hold different materials, so
+        # the series label is the entry's material where it has one -- falling back to
+        # the slot label only distinguishes entries when there is just one of them.
         series: dict[str, Any] = {
-            recipe.slot(sid).label: (
-                draft.slots[sid].merged.x,
-                draft.slots[sid].merged.y,
+            _series_label(recipe, draft, key): (
+                draft.slots[key].merged.x,
+                draft.slots[key].merged.y,
             )
-            for sid in slot_ids
+            for key in keys
         }
         if len(groups) > 1:
             st.caption(f"**{UNIT_LABELS.get(units, units)}**")
         show_spectrum(series, height=260, x_title=x_title(units))
-    for slot_id, notes in draft.provenance.items():
+    for key, notes in draft.provenance.items():
         if len(notes) > 1 or notes[0] != "single acquisition":
-            st.caption(f"{recipe.slot(slot_id).label}: " + " → ".join(notes))
+            st.caption(f"{_series_label(recipe, draft, key)}: " + " → ".join(notes))
+
+
+def _series_label(recipe: RecipeSpec, draft: CalibrationDraft, key: str) -> str:
+    entry = draft.slots.get(key)
+    if entry is not None and entry.material:
+        return entry.material
+    label = recipe.slot(key).label
+    return label if key == slot_id_of(key) else f"{label} ({key})"
 
 
 def step_overview(recipe: RecipeSpec, draft: CalibrationDraft) -> None:
     """Show which steps will run, before anything is fitted."""
-    available = draft.available_slots()
+    # A repeatable slot's available entries are keyed "anchor#0", "anchor#1", ... -- any
+    # one of them present counts as the plain slot id "anchor" being satisfied.
+    available = {slot_id_of(s) for s in draft.available_slots()}
     for step in recipe.steps:
         missing = [s for s in step.inputs if s not in available]
         if not missing:

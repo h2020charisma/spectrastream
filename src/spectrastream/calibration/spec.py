@@ -1,14 +1,18 @@
 """Declarative description of a calibration protocol.
 
 A *recipe* says which reference spectra a calibration needs and which steps run
-over them, in order. It is data (YAML), not code, so supporting a new protocol
-is a new file rather than a new page: the UI renders one uploader per
+over them, in order. It is data, not code, so supporting a new protocol is new
+data rather than a new page: the UI renders one uploader per
 :class:`SpectrumSlot` and one status line per :class:`StepSpec`.
 
-This matters because engines disagree about their inputs. The ramanchada2 path
-wants Neon and Silicon; CWA 18133 fits peaks on a calibrant and splines them;
-the optimal-transport engine works from anchor materials (PST/CAL/APAP) and
-never sees a Neon lamp. Only the recipe knows.
+This matters because engines disagree about their inputs -- the ramanchada2
+path wants Neon and Silicon, while another may take any material it holds
+reference positions for and never see a Neon lamp. Only the recipe knows.
+
+In-process engines ship their recipes as YAML alongside this module. Remote
+ones do not: their recipes are published by the service that implements them
+and fetched at registry build time, so an algorithm's material requirements
+stay with whoever implements it.
 """
 
 from typing import Any, Literal
@@ -19,6 +23,22 @@ from spectrastream.merge import MergeStrategy
 from spectrastream.preprocess import PreprocessStep
 
 SpectrumUnits = Literal["cm-1", "nm", "pixel"]
+
+#: Separates a repeatable slot's id from its entry index ("anchor#0", "anchor#1", ...). A
+#: repeatable slot (SpectrumSlot.repeatable) is filled once per *material*, and those
+#: entries are never combined with each other -- only the acquisitions within one entry
+#: are. The separator is excluded from slot ids themselves (see the validators below), so
+#: it unambiguously marks an entry key wherever one appears.
+ENTRY_SEP = "#"
+
+
+def entry_key(slot_id: str, index: int) -> str:
+    return f"{slot_id}{ENTRY_SEP}{index}"
+
+
+def base_slot_id(key: str) -> str:
+    """The recipe slot a draft/engine key belongs to ("anchor#1" -> "anchor")."""
+    return key.split(ENTRY_SEP, 1)[0]
 
 #: What a step contributes to the final calibration. The UI groups steps by
 #: this, and engines use it to decide ordering (intensity always applies last,
@@ -33,6 +53,10 @@ class SpectrumSlot(BaseModel):
     averaged, or -- for neon especially -- a set of different exposures to be
     HDR-merged, since neon lines span far more dynamic range than one exposure
     can capture.
+
+    That is distinct from ``repeatable``, which takes several *different*
+    materials -- see below. One slot, one material, however many acquisitions of
+    it; a repeatable slot is instead filled once per material.
     """
 
     id: str
@@ -49,6 +73,21 @@ class SpectrumSlot(BaseModel):
     merge: MergeStrategy = "auto"
     #: Preprocessing offered for this material, with recipe-chosen defaults.
     preprocess: list[PreprocessStep] = Field(default_factory=list)
+    #: Whether this slot may be filled once per material rather than once. Set
+    #: by protocols that take an open-ended set of reference materials instead
+    #: of a fixed named list, where how many are supplied is the user's choice.
+    #: The UI offers "add another"; engines receive one entry per material.
+    repeatable: bool = False
+    #: Whether the user names the material for each upload. True when the recipe
+    #: does not fix ``material`` -- a protocol accepting any material cannot know
+    #: in advance which one a given file holds.
+    material_required: bool = False
+    #: Whether the user may supply certified peak positions for this slot's
+    #: material. Protocols that judge a spectrum against known positions need a
+    #: table for it; offering this lets a caller work with a material the
+    #: service does not carry, or substitute their own certificate for one it
+    #: does.
+    accepts_reference_peaks: bool = False
 
     model_config = {"extra": "forbid"}
 
@@ -63,6 +102,13 @@ class StepSpec(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
     optional: bool = False
     produces: StepProduct
+    #: Which of this step's inputs it locates peaks in, when that is not all of
+    #: them. A step can treat its inputs differently -- deriving a warp from
+    #: reference positions alone while still reading a band apex from a
+    #: laser-zeroing material -- and only the slots named here get peak-finding
+    #: controls. ``None`` means every input, which keeps recipes written before
+    #: this field behaving as they did.
+    finds_peaks_in: list[str] | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -76,6 +122,12 @@ class RecipeSpec(BaseModel):
     version: int = 1
     description: str = ""
     laser_wavelengths: list[int] | None = None
+    #: Which server-side algorithm a `remote`-engine recipe targets, set by the service
+    #: that published it. Unused by in-process engines. A recipe's slots are that
+    #: algorithm's material contract, so the two cannot be chosen independently: a recipe
+    #: built around one set of reference materials is meaningless for an algorithm
+    #: expecting a different set.
+    algorithm_id: str | None = None
     slots: list[SpectrumSlot] = Field(default_factory=list)
     steps: list[StepSpec] = Field(default_factory=list)
 
@@ -106,6 +158,15 @@ class RecipeSpec(BaseModel):
                 raise ValueError(
                     f"step {step.id!r} consumes undeclared slot(s) {sorted(unknown)!r}"
                 )
+            if step.finds_peaks_in is not None:
+                # Naming a slot the step does not consume would silently offer peak
+                # controls on an input this step never reads.
+                stray = set(step.finds_peaks_in) - set(step.inputs)
+                if stray:
+                    raise ValueError(
+                        f"step {step.id!r} declares finds_peaks_in {sorted(stray)!r}, "
+                        "which it does not consume"
+                    )
         return self
 
     @model_validator(mode="after")
@@ -118,8 +179,15 @@ class RecipeSpec(BaseModel):
         return self
 
     def slot(self, slot_id: str) -> SpectrumSlot:
+        """Look up a slot, or a repeatable slot's entry ("anchor#0" -> "anchor").
+
+        A repeatable slot has one definition but many entries, each holding a
+        different material -- entry ids are a UI/engine addressing convention,
+        not a distinct slot, so they resolve to the same :class:`SpectrumSlot`.
+        """
+        base = base_slot_id(slot_id)
         for slot in self.slots:
-            if slot.id == slot_id:
+            if slot.id == base:
                 return slot
         raise KeyError(slot_id)
 
@@ -132,7 +200,8 @@ class RecipeSpec(BaseModel):
         return int(round(laser_wl_nm)) in self.laser_wavelengths
 
     def missing_required_slots(self, available: set[str]) -> list[str]:
-        return [s.id for s in self.slots if s.required and s.id not in available]
+        present = {base_slot_id(a) for a in available}
+        return [s.id for s in self.slots if s.required and s.id not in present]
 
     def runnable_steps(self, available: set[str]) -> list[StepSpec]:
         """Steps whose inputs are all present.
@@ -140,10 +209,13 @@ class RecipeSpec(BaseModel):
         A step is skipped -- not failed -- when an *optional* input is absent.
         This is the "no Silicon spectrum" case: the Neon curve is still worth
         deriving on its own, so laser zeroing drops out quietly instead of
-        taking the whole calibration down with it.
+        taking the whole calibration down with it. ``available`` may contain
+        entry keys for a repeatable slot; any one entry counts as the slot
+        being present.
         """
+        present = {base_slot_id(a) for a in available}
         runnable = []
         for step in self.steps:
-            if all(slot_id in available for slot_id in step.inputs):
+            if all(slot_id in present for slot_id in step.inputs):
                 runnable.append(step)
         return runnable

@@ -58,14 +58,27 @@ def load_recipes(dirs: Iterable[Path] | None = None) -> dict[str, RecipeSpec]:
 @lru_cache(maxsize=1)
 def _registry() -> tuple[dict[str, CalibrationEngine], dict[str, RecipeSpec]]:
     from spectrastream.calibration.engines.rc2 import Rc2Engine
+    from spectrastream.calibration.engines.remote import RemoteCalibrationEngine
 
     recipes = load_recipes()
+    # Remote recipes are published by the calibration service rather than shipped here:
+    # which algorithms exist, and what reference materials each needs, belongs to whoever
+    # implements them. An unreachable or unconfigured service yields none, and the
+    # in-process recipes above are unaffected.
+    for recipe in RemoteCalibrationEngine.fetch_recipes():
+        recipes[recipe.id] = recipe
+
     engines: dict[str, CalibrationEngine] = {}
 
     def register(engine: CalibrationEngine) -> None:
         engines[engine.id] = engine
 
     register(Rc2Engine(r for r in recipes.values() if r.engine == Rc2Engine.id))
+    register(
+        RemoteCalibrationEngine(
+            r for r in recipes.values() if r.engine == RemoteCalibrationEngine.id
+        )
+    )
 
     unknown = {r.id: r.engine for r in recipes.values() if r.engine not in engines}
     if unknown:

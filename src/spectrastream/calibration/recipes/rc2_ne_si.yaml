@@ -13,7 +13,7 @@ description: >
 
 slots:
   - id: neon
-    label: Neon lamp spectrum
+    label: Neon spectrum
     material: Ne
     required: true
     units: cm-1

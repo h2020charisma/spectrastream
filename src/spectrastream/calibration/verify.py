@@ -198,6 +198,7 @@ def verify_against_reference(
         should_fit=True,
         match_method=match_method,
         stages=[AS_MEASURED, CALIBRATED],
+        auto_reduce_degree = True
     )
     if matched is None or matched.empty:
         raise CalibrationError(
