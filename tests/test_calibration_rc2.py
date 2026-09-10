@@ -16,6 +16,7 @@ from spectrastream.calibration import (
     engine_for_recipe,
     get_recipe,
 )
+from spectrastream.calibration.engines.rc2 import Rc2Engine
 
 
 @pytest.fixture(scope="module")
@@ -195,3 +196,163 @@ def test_calibration_applies_to_an_unrelated_target(neon_only_fit, target_spectr
     out = fit.apply(target_spectrum.spectrum, spe_units="cm-1")
     assert len(out.x) == len(target_spectrum.spectrum.x)
     assert np.all(np.isfinite(out.y))
+
+
+def _y_calibrated_payload():
+    """A saved y-intensity calibration, as ``export_bytes`` would produce it."""
+    from ramanchada2.protocols.calibration.ycalibration import (
+        CertificatesDict,
+        YCalibrationComponent,
+    )
+    from ramanchada2.spectrum import Spectrum
+
+    certificate = CertificatesDict().get(wavelength=785, key="NIST785_SRM2241")
+    reference = Spectrum(x=np.linspace(200, 3500, 60), y=np.ones(60))
+    component = YCalibrationComponent(
+        785, reference_spe_xcalibrated=reference, certificate=certificate
+    )
+    return {
+        "engine": "rc2",
+        "recipe": "test",
+        "model": {
+            "format": "ramanchada2-calmodel",
+            "version": 1,
+            "laser_wl": 785,
+            "nonmonotonic": "drop",
+            "prominence_coeff": 3,
+            "components": [component.to_dict()],
+        },
+        "outcomes": [],
+    }
+
+
+def test_loaded_certificate_is_reresolved_not_trusted_from_the_file():
+    """A saved profile can name a certificate; it must not be able to carry one.
+
+    ``YCalibrationCertificate.equation``/``params`` are ``eval``'d at apply time
+    with a live ``__builtins__``. If a tampered ``equation`` survives a load
+    unexamined, importing and re-exporting a profile becomes a code-execution
+    path. The fix re-resolves every certificate from ``CertificatesDict`` by id
+    and wavelength on load, discarding whatever the file itself claims.
+    """
+    payload = _y_calibrated_payload()
+    payload["model"]["components"][0]["certificate"]["equation"] = (
+        "__import__('os').system('echo pwned') or (A0 + x*0)"
+    )
+
+    engine = Rc2Engine()
+    fitted = engine.load(payload)
+
+    restored = fitted.calmodel.components[0].ref
+    assert restored.equation == (
+        "A0 + A1 * x + A2 * x**2 + A3 * x**3 + A4 * x**4 + A5 * x**5"
+    )
+
+    # A re-export reflects the re-resolved certificate, not the tampered file:
+    # once loaded, the in-memory model no longer carries what the file said.
+    reexported = fitted.to_dict()
+    assert reexported["model"]["components"][0]["certificate"]["equation"] == (
+        "A0 + A1 * x + A2 * x**2 + A3 * x**3 + A4 * x**4 + A5 * x**5"
+    )
+
+
+def test_loaded_certificate_survives_json_round_trip():
+    payload = json.loads(json.dumps(_y_calibrated_payload()))
+    engine = Rc2Engine()
+    fitted = engine.load(payload)
+    assert fitted.calmodel.components[0].ref.id == "NIST785_SRM2241"
+
+
+def test_inline_certificate_mapping_is_not_a_supported_recipe_param():
+    """A recipe cannot embed a certificate dict in ``params`` -- only a
+    registry id, or a live object passed in-process. Inline mappings came
+    from YAML/JSON in principle (recipes, or a saved profile's params), which
+    is exactly the untrusted-equation surface the registry lookup exists to
+    avoid; the hosted app supports registry certificates only."""
+    from spectrastream.calibration import (
+        CalibrationContext,
+        engine_for_recipe,
+        get_recipe,
+    )
+
+    recipe = get_recipe("rc2.y_srm")
+    engine = engine_for_recipe(recipe)
+    tampered = {
+        "id": "NIST785_SRM2241",
+        "wavelength": 785,
+        "params": "A0 = 1",
+        "equation": "__import__('os').system('echo pwned') or A0",
+        "raman_shift": [200, 3500],
+    }
+    x = np.linspace(200, 3500, 60)
+    from ramanchada2.spectrum import Spectrum
+
+    srm = Spectrum(x=x, y=np.ones(60))
+    with pytest.raises(CalibrationError):
+        engine.fit(
+            recipe,
+            {"srm": srm},
+            CalibrationContext(laser_wl_nm=785),
+            params={"y_intensity": {"certificate": tampered}},
+        )
+
+
+def test_unknown_certificate_id_is_rejected_on_load():
+    payload = _y_calibrated_payload()
+    payload["model"]["components"][0]["certificate"]["id"] = "not-a-real-certificate"
+
+    engine = Rc2Engine()
+    with pytest.raises(CalibrationError, match="not a known"):
+        engine.load(payload)
+
+
+def test_tampered_fitted_model_equation_is_rejected_on_load():
+    """``model`` (the fit of the measured reference) has its own eval'd
+    equation, independent of ``certificate``. Its functional form is not
+    free -- rc2 derives it entirely from the certificate -- so a value that
+    does not match must be rejected rather than evaluated."""
+    payload = _y_calibrated_payload()
+    payload["model"]["components"][0]["model"]["equation"] = (
+        "__import__('os').system('echo pwned') or (A0 + x*0)"
+    )
+
+    engine = Rc2Engine()
+    with pytest.raises(CalibrationError, match="does not match the certificate"):
+        engine.load(payload)
+
+
+def test_non_polynomial_certificate_model_round_trips():
+    """A log-Gaussian SRM certificate (e.g. 532/633/830 nm) is the other
+    branch of the equation check: the fitted model's equation must equal the
+    certificate's own equation verbatim, not the generated polynomial form."""
+    from ramanchada2.protocols.calibration.ycalibration import (
+        CertificatesDict,
+        YCalibrationComponent,
+    )
+    from ramanchada2.spectrum import Spectrum
+
+    certificate = CertificatesDict().get(wavelength=532, key="NIST532_SRM2242a")
+    assert certificate.polynomial_order is None  # exercising the non-poly branch
+
+    x = np.linspace(*certificate.raman_shift, 60)
+    reference = Spectrum(x=x, y=np.asarray(certificate.Y(x)))
+    component = YCalibrationComponent(
+        532, reference_spe_xcalibrated=reference, certificate=certificate
+    )
+    payload = {
+        "engine": "rc2",
+        "recipe": "test",
+        "model": {
+            "format": "ramanchada2-calmodel",
+            "version": 1,
+            "laser_wl": 532,
+            "nonmonotonic": "drop",
+            "prominence_coeff": 3,
+            "components": [component.to_dict()],
+        },
+        "outcomes": [],
+    }
+
+    engine = Rc2Engine()
+    fitted = engine.load(payload)
+    assert fitted.calmodel.components[0].ref.id == "NIST532_SRM2242a"

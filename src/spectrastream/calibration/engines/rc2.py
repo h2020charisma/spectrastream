@@ -457,8 +457,14 @@ def _resolve_certificate(
     cert = params.get("certificate")
     if isinstance(cert, YCalibrationCertificate):
         return cert
-    if isinstance(cert, Mapping):
-        return YCalibrationCertificate.model_validate(dict(cert))
+    if cert is not None and not isinstance(cert, str):
+        # Only a registry id (or a live object, above) is accepted -- never a
+        # mapping. A mapping could carry its own equation/params, which would
+        # be eval'd unchecked; the hosted app trusts CertificatesDict only.
+        raise CalibrationError(
+            f"Intensity calibration certificate must be a registry id, not "
+            f"{type(cert).__name__!r}."
+        )
     if laser_wl is None:
         raise CalibrationError(
             "Intensity calibration needs a laser wavelength to pick a certificate."
@@ -469,15 +475,90 @@ def _resolve_certificate(
         raise CalibrationError(
             f"No intensity-calibration certificate for {laser_wl:g} nm."
         )
-    key = cert if isinstance(cert, str) else None
-    if key is None:
-        key = next(iter(available))
+    key = cert if cert is not None else next(iter(available))
     if key not in available:
         raise CalibrationError(
             f"Certificate {key!r} not available for {laser_wl:g} nm "
             f"(have: {sorted(available)})."
         )
     return certificates.get(wavelength=int(laser_wl), key=key)
+
+
+def _polynomial_equation(order: int) -> tuple[str, list[str]]:
+    """The equation/param-name shape ``YCalibrationComponent._fit_reference``
+    generates for a polynomial certificate -- reproduced here so a loaded
+    ``ParametricModel`` can be checked against it rather than trusted."""
+    names = [f"A{i}" for i in range(order + 1)]
+    terms = ["A0"] + [f"A{i}*x**{i}" for i in range(1, order + 1)]
+    return " + ".join(terms), names
+
+
+def _reresolve_certificates(calmodel: CalibrationModel) -> None:
+    """Replace every loaded certificate with rc2's own copy, and check the
+    fitted model's equation against the shape that certificate implies.
+
+    ``YCalibrationComponent.from_dict`` rebuilds both ``ref`` (the certificate)
+    and ``model`` (the fit of the *measured* reference) straight from the file,
+    and both carry an ``equation`` string later ``eval``'d with a live
+    ``__builtins__``. A saved profile is meant to name a certificate, not carry
+    one, so ``ref`` is replaced outright with ``CertificatesDict``'s copy -- the
+    same source the derivation dropdown uses.
+
+    ``model.equation`` cannot be replaced the same way: it is the *fit*, and
+    its coefficients are only meaningful together with the actual reference
+    spectrum that produced them, which the file does not carry. But the
+    equation's functional form is not free -- ``_fit_reference`` derives it
+    entirely from the certificate, never from anything user-supplied -- so it
+    must equal what the (now-trusted) certificate implies: for a polynomial
+    certificate, the generated ``A0 + A1*x**1 + ...`` of the same order; for
+    any other certificate, the certificate's own equation string verbatim. A
+    mismatch means the file's equation did not come from fitting this
+    certificate, and the load is rejected rather than evaluating it.
+    """
+    for component in calmodel.components:
+        if not isinstance(component, YCalibrationComponent):
+            continue
+        ref = component.ref
+        cert_id = getattr(ref, "id", None)
+        wavelength = getattr(ref, "wavelength", None)
+        if cert_id is None or wavelength is None:
+            raise CalibrationError(
+                "Saved intensity calibration is missing its certificate id or "
+                "wavelength; it cannot be trusted."
+            )
+        try:
+            certificate = CertificatesDict().get(
+                wavelength=int(wavelength), key=cert_id
+            )
+        except KeyError as err:
+            raise CalibrationError(
+                f"Certificate {cert_id!r} for {wavelength:g} nm is not a known "
+                "intensity-calibration certificate."
+            ) from err
+        component.ref = certificate
+
+        model = component.model
+        equation = getattr(model, "equation", None)
+        if equation is None:
+            continue  # not a ParametricModel -- no equation to eval
+
+        order = certificate.polynomial_order
+        if order is not None:
+            expected_equation, expected_names = _polynomial_equation(order)
+        else:
+            expected_equation, expected_names = (
+                certificate.equation,
+                certificate.param_names,
+            )
+        if (
+            equation != expected_equation
+            or list(getattr(model, "param_names", [])) != expected_names
+        ):
+            raise CalibrationError(
+                f"Saved intensity calibration for {cert_id!r} has a fitted "
+                "model that does not match the certificate; it cannot be "
+                "trusted."
+            )
 
 
 def _action_y_intensity(
@@ -622,6 +703,7 @@ class Rc2Engine:
 
     def load(self, data: Mapping[str, Any]) -> Rc2Fitted:
         calmodel = CalibrationModel.from_dict(dict(data["model"]))
+        _reresolve_certificates(calmodel)
         outcomes = [
             StepOutcome(
                 o.get("step_id", ""),
