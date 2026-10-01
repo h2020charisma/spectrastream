@@ -125,7 +125,7 @@ jobs:
 
       - name: Process coverage data
         id: coverage
-        uses: py-cov-action/python-coverage-comment-action@a05be3d2e8a6272d3ef5fb2840ab20368bb2eb71  # v4.3
+        uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f  # v4.5
         with:
           ACTIVITY: ${{ github.event_name == 'push' && 'save_coverage_data_files' || 'process_pr' }}
           COVERAGE_DATA_BRANCH: COVERAGE-REPORT
